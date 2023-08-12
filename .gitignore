@@ -45,3 +45,6 @@
 *.pyc
 
 *.vscode
+
+# logs
+*.log
