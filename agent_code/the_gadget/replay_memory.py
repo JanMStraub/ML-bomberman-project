@@ -1,4 +1,4 @@
-from collections import namedtuple
+from collections import namedtuple, deque
 import random
 
 Transition = namedtuple('Transition',
@@ -8,7 +8,7 @@ Transition = namedtuple('Transition',
 class ReplayMemory(object):
 
     def __init__(self, capacity):
-        self.memory = []
+        self.memory = deque([], maxlen = capacity)
 
     def push(self, *args):
         """Saves a transition."""

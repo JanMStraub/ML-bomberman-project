@@ -23,7 +23,7 @@ GAMMA = 0.99
 TARGET_UPDATE = 4
 
 # Events
-PLACEHOLDER_EVENT = "PLACEHOLDER"
+VICTORY = "VICTORY"
 
 
 def setup_training(self):
@@ -37,8 +37,10 @@ def setup_training(self):
     self.logger.info("Setting up the training setup.")
     self.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
 
-    self.model = DQN(867, 5)
-    self.optimizer = optim.RMSprop(self.model.parameters())
+    self.policy_net = DQN(867, 5)
+    self.target_net = DQN(867, 5)
+    self.target_net.load_state_dict(self.policy_net.state_dict())
+    self.optimizer = optim.RMSprop(self.policy_net.parameters())
     self.memory = ReplayMemory(100000)
 
 
@@ -63,7 +65,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
     # Idea: Add your own events to hand out rewards
     if ...:
-        events.append(PLACEHOLDER_EVENT)
+        events.append(VICTORY)
 
     # state_to_features is defined in callbacks.py
     self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
@@ -87,7 +89,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     # Store the model
     with open("my-saved-model.pt", "wb") as file:
-        pickle.dump(self.model, file)
+        pickle.dump(self.policy_net, file)
 
 
 def reward_from_events(self, events: List[str]) -> int:
@@ -101,6 +103,10 @@ def reward_from_events(self, events: List[str]) -> int:
         e.COIN_COLLECTED: 1,
         e.INVALID_ACTION: -1,
         e.WAITED: -1,
+        e.MOVED_DOWN: .1,
+        e.MOVED_UP: .1,
+        e.MOVED_LEFT: .1,
+        e.MOVED_RIGHT: .1
     }
     reward_sum = 0
     for event in events:
@@ -108,5 +114,5 @@ def reward_from_events(self, events: List[str]) -> int:
             reward_sum += game_rewards[event]
             
     self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
-    
+    reward_sum -= .1
     return reward_sum

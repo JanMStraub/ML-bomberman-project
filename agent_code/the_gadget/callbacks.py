@@ -29,7 +29,7 @@ def setup(self):
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
-            self.model = pickle.load(file)
+            self.policy_net = pickle.load(file)
 
 
 def act(self, game_state: dict) -> str:
@@ -43,16 +43,22 @@ def act(self, game_state: dict) -> str:
     """
     # todo Exploration vs exploitation
     random_prob = .1
-    if self.train and random.random() < random_prob:
-        self.logger.debug("Querying model for action.")
-        with torch.no_grad():
-            features = state_to_features(game_state)
-            features_tensor = torch.from_numpy(features).float()
-            action = self.model(features_tensor)
-            return ACTIONS[torch.argmax(action)]
+    if self.train:
+        if random.random() < random_prob:
+            self.logger.debug("Querying model for action.")
+            with torch.no_grad():
+                features = state_to_features(game_state)
+                features_tensor = torch.from_numpy(features).float()
+                action = self.policy_net(features_tensor)
+                return ACTIONS[torch.argmax(action)]
+        else:
+            self.logger.debug("Choosing action purely at random.")
+            return np.random.choice(ACTIONS, p=[.2, .2, .2, .2, .1, .1])
     else:
-        self.logger.debug("Choosing action purely at random.")
-        return np.random.choice(ACTIONS, p=[.2, .2, .2, .2, .2, .0])
+        features = state_to_features(game_state)
+        features_tensor = torch.from_numpy(features).float()
+        action = self.policy_net(features_tensor)
+        return ACTIONS[torch.argmax(action)]
 
 
 def state_to_features(game_state: dict) -> np.array:

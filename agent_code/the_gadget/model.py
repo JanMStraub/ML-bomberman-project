@@ -15,5 +15,4 @@ class DQN(nn.Module):
 
     def forward(self, x):
         # Reshape the input and pass it through the model_sequence
-        logits = self.model_sequence(x.view(-1, 2, COLS, ROWS))
-        return logits
+        return self.model_sequence(x.view(-1, 2, COLS, ROWS))
