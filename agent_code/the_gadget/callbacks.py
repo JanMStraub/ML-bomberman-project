@@ -2,8 +2,13 @@ import os
 import pickle
 import random
 import torch
+import math
 
 import numpy as np
+
+EPS_START = 0.9
+EPS_END = 0.05
+EPS_DECAY = 200
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 
@@ -23,6 +28,7 @@ def setup(self):
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
     self.logger.debug('Successfully entered setup code')
+    self.steps_done = 0
     
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
@@ -42,7 +48,9 @@ def act(self, game_state: dict) -> str:
     :return: The action to take as a string.
     """
     # todo Exploration vs exploitation
-    random_prob = .1
+    random_prob = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * self.steps_done / EPS_DECAY)
+    self.steps_done += 1
+    
     if self.train:
         if random.random() < random_prob:
             self.logger.debug("Querying model for action.")
@@ -52,12 +60,13 @@ def act(self, game_state: dict) -> str:
                 action = self.policy_net(features_tensor)
                 return ACTIONS[torch.argmax(action)]
         else:
-            self.logger.debug("Choosing action purely at random.")
+            self.logger.debug("Random action.")
             return np.random.choice(ACTIONS, p=[.2, .2, .2, .2, .1, .1])
     else:
         features = state_to_features(game_state)
         features_tensor = torch.from_numpy(features).float()
         action = self.policy_net(features_tensor)
+        self.logger.debug(ACTIONS[torch.argmax(action)])
         return ACTIONS[torch.argmax(action)]
 
 

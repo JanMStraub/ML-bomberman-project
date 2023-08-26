@@ -1,4 +1,5 @@
 import torch.nn as nn
+
 from settings import COLS, ROWS
 
 class DQN(nn.Module):
