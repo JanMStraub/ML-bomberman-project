@@ -1,10 +1,13 @@
 import os
 import pickle
 import random
-import torch
-import math
+from collections import deque
 
+import math
 import numpy as np
+import torch
+
+from .helper import navigate_field
 
 EPS_START = 0.9
 EPS_END = 0.05
@@ -28,7 +31,10 @@ def setup(self):
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
     self.logger.debug('Successfully entered setup code')
-    self.steps_done = 0
+    
+    self.action_deque = deque(maxlen=2)
+    self.action_deque.append("NONE")
+    self.action_deque.append("NONE")
     
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
@@ -47,10 +53,9 @@ def act(self, game_state: dict) -> str:
     :param game_state: The dictionary that describes everything on the board.
     :return: The action to take as a string.
     """
-    # todo Exploration vs exploitation
-    random_prob = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * self.steps_done / EPS_DECAY)
-    self.steps_done += 1
-    
+
+    random_prob = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * game_state["step"] / EPS_DECAY)
+
     if self.train:
         if random.random() < random_prob:
             self.logger.debug("Querying model for action.")
@@ -66,8 +71,8 @@ def act(self, game_state: dict) -> str:
         features = state_to_features(game_state)
         features_tensor = torch.from_numpy(features).float()
         action = self.policy_net(features_tensor)
-        self.logger.debug(ACTIONS[torch.argmax(action)])
-        return ACTIONS[torch.argmax(action)]
+        chosen_action = choose_action(self, action, game_state)
+        return chosen_action
 
 
 def state_to_features(game_state: dict) -> np.array:
@@ -97,3 +102,15 @@ def state_to_features(game_state: dict) -> np.array:
     hybrid_matrix[x, y, 1] = 1
 
     return hybrid_matrix.reshape(-1)
+
+
+# TODO fix jumping around
+def choose_action(self, action, game_state) -> dict:
+    np_action = np.argsort(action.detach().numpy())[::-1]
+    preferred_actions = navigate_field(self, game_state)
+    chosen_action = None
+
+    for i in np_action:
+        if ACTIONS[i] in preferred_actions and ACTIONS[i] != self.action_deque[0]:
+            self.action_deque.append(chosen_action)
+            return ACTIONS[i]
