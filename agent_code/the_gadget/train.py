@@ -10,6 +10,7 @@ from .callbacks import state_to_features, ACTIONS
 from .model import DQN
 from .replay_memory import ReplayMemory
 
+
 # This is only an example!
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
@@ -19,7 +20,7 @@ TRANSITION_HISTORY_SIZE = 3  # keep only ... last transitions
 GAMMA = 0.99
 
 # Events
-VICTORY = "VICTORY"
+ALREADY_VISITED = "ALREADY_VISITED"
 
 
 def setup_training(self):
@@ -32,6 +33,7 @@ def setup_training(self):
     """
     self.logger.info("Setting up the training setup.")
     self.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
+    self.visited_tiles = []
     
     self.policy_net = DQN(578, 6)
     self.target_net = DQN(578, 6)
@@ -45,8 +47,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     Called once per step to allow intermediate rewards based on game events.
 
     When this method is called, self.events will contain a list of all game
-    events relevant to your agent that occurred during the previous step. Consult
-    settings.py to see what events are tracked. You can hand out rewards to your
+    events relevant to your agent that occurred during the previous step. Consult settings.py to see what events are tracked. You can hand out rewards to your
     agent based on these events and your knowledge of the (new) game state.
 
     This is *one* of the places where you could update your agent.
@@ -59,15 +60,16 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     """
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
-    # Idea: Add your own events to hand out rewards
-    if ...:
-        events.append(VICTORY)
-
     self.memory.push(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events))
     optimize_model(self, old_game_state, self_action, new_game_state, events)
     
     # state_to_features is defined in callbacks.py
     self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
+    
+    if new_game_state["self"][3] in self.visited_tiles:
+        events.append(ALREADY_VISITED)
+    
+    self.visited_tiles.append(old_game_state["self"][3])
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -105,16 +107,17 @@ def reward_from_events(self, events: List[str]) -> int:
         e.MOVED_DOWN: .1,
         e.WAITED: -1,
         e.INVALID_ACTION: -1,
-        e.BOMB_DROPPED: -.5,
+        e.BOMB_DROPPED: .5,
         e.BOMB_EXPLODED: .5,
-        e.CRATE_DESTROYED: 1,
+        e.CRATE_DESTROYED: 3,
         e.COIN_FOUND: 1,
         e.COIN_COLLECTED: 2,
         e.KILLED_OPPONENT: 5,
-        e.KILLED_SELF: -100,
+        e.KILLED_SELF: -5,
         e.GOT_KILLED: -100,
         e.OPPONENT_ELIMINATED: 10,
-        e.SURVIVED_ROUND: 10
+        e.SURVIVED_ROUND: 10,
+        ALREADY_VISITED: -.5,
     }
 
     reward_sum = 0
@@ -141,7 +144,6 @@ def optimize_model(self, old_state, action, new_state, events):
 
     state_action_value = self.policy_net(old_game_state).squeeze()[action_idx]
     next_state_action_value = self.target_net(new_game_state).max().unsqueeze(0)
-
     expected_state_action_value = (next_state_action_value * GAMMA) + reward
     loss = F.smooth_l1_loss(state_action_value, expected_state_action_value)
 

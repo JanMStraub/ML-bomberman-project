@@ -32,9 +32,7 @@ def setup(self):
     """
     self.logger.debug('Successfully entered setup code')
     
-    self.action_deque = deque(maxlen=2)
-    self.action_deque.append("NONE")
-    self.action_deque.append("NONE")
+    self.visited_tiles = []
     
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
@@ -57,21 +55,22 @@ def act(self, game_state: dict) -> str:
     random_prob = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * game_state["step"] / EPS_DECAY)
 
     if self.train:
+        self.logger.debug("TRAINING")
         if random.random() < random_prob:
-            self.logger.debug("Querying model for action.")
             with torch.no_grad():
                 features = state_to_features(game_state)
                 features_tensor = torch.from_numpy(features).float()
                 action = self.policy_net(features_tensor)
                 return ACTIONS[torch.argmax(action)]
         else:
-            self.logger.debug("Random action.")
             return np.random.choice(ACTIONS, p=[.2, .2, .2, .2, .1, .1])
     else:
+        self.logger.debug("COMPETITION")
         features = state_to_features(game_state)
         features_tensor = torch.from_numpy(features).float()
         action = self.policy_net(features_tensor)
         chosen_action = choose_action(self, action, game_state)
+        self.logger.debug(f"Action: {chosen_action}")
         return chosen_action
 
 
@@ -83,8 +82,7 @@ def state_to_features(game_state: dict) -> np.array:
     a feature vector.
 
     You can find out about the state of the game environment via game_state,
-    which is a dictionary. Consult 'get_state_for_agent' in environment.py to see
-    what it contains.
+    which is a dictionary. Consult 'get_state_for_agent' in environment.py to see what it contains.
 
     :param game_state:  A dictionary describing the current game board.
     :return: np.array
@@ -101,16 +99,26 @@ def state_to_features(game_state: dict) -> np.array:
     (x, y) = game_state["self"][3]
     hybrid_matrix[x, y, 1] = 1
 
+    # bombe + andere agents
+    # liste mit alter position
+    # liste mit position von alten agents
+    
     return hybrid_matrix.reshape(-1)
 
 
 # TODO fix jumping around
-def choose_action(self, action, game_state) -> dict:
-    np_action = np.argsort(action.detach().numpy())[::-1]
-    preferred_actions = navigate_field(self, game_state)
-    chosen_action = None
+def choose_action(self, actions, game_state) -> dict:
+    # Convert the action scores to a NumPy array
+    action_scores = actions.detach().numpy()
 
-    for i in np_action:
-        if ACTIONS[i] in preferred_actions and ACTIONS[i] != self.action_deque[0]:
-            self.action_deque.append(chosen_action)
-            return ACTIONS[i]
+    # Sort the actions by their scores in descending order
+    sorted_actions = np.argsort(-action_scores)
+
+    # Get the list of valid actions based on the game state
+    valid_actions = navigate_field(self, game_state)
+
+    # Choose the first valid action from the sorted list
+    for action_idx in sorted_actions:
+        action = ACTIONS[action_idx]
+        if action in valid_actions:
+            return action

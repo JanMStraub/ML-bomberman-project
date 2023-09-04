@@ -5,6 +5,7 @@ import torch.optim as optim
 class DQN(nn.Module):
 
     def __init__(self, n_observations, n_actions):
+
         super(DQN, self).__init__()
         
         self.model_sequence = nn.Sequential(
