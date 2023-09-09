@@ -1,4 +1,5 @@
-def navigate_field(self, game_state):
+# UNUSED
+def action_filter(self, game_state):
     # Get the current position of your agent
     x, y = game_state['self'][3]
     
@@ -19,7 +20,6 @@ def navigate_field(self, game_state):
             else:
                 secondary_action = action
         
-
     # Add the current position to the list of visited tiles
     self.visited_tiles.append((x, y))
 

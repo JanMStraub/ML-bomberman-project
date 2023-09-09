@@ -2,22 +2,20 @@ import pickle
 import torch
 import torch.nn.functional as F
 from torch import optim
-from collections import namedtuple, deque
 from typing import List
 
 import events as e
+import numpy as np
 from .callbacks import state_to_features, ACTIONS
-from .model import DQN
-from .replay_memory import ReplayMemory
-
-
-# This is only an example!
-Transition = namedtuple('Transition',
-                        ('state', 'action', 'next_state', 'reward'))
+from .q_network import DQN
+from .replay_memory import ReplayMemory, Transition
+from settings import COLS, ROWS
 
 # Hyper parameters -- DO modify
-TRANSITION_HISTORY_SIZE = 3  # keep only ... last transitions
-GAMMA = 0.99
+GAMMA = 0.95
+BATCH_SIZE = 128
+MAT_SIZE = COLS * ROWS
+HIDDEN_SIZE = 64
 
 # Events
 ALREADY_VISITED = "ALREADY_VISITED"
@@ -25,19 +23,18 @@ ALREADY_VISITED = "ALREADY_VISITED"
 
 def setup_training(self):
     """
-    Initialise self for training purpose.
-
-    This is called after `setup` in callbacks.py.
-
-    :param self: This object is passed to all callbacks and you can set arbitrary values.
+    Initialize the agent for training.
     """
-    self.logger.info("Setting up the training setup.")
-    self.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
+    self.logger.info("Setting up the training environment.")
     self.visited_tiles = []
-    
-    self.policy_net = DQN(578, 6)
-    self.target_net = DQN(578, 6)
+
+    # Initialize the policy network and the target network
+    self.policy_net = DQN(MAT_SIZE, len(ACTIONS), HIDDEN_SIZE)
+    self.target_net = DQN(MAT_SIZE, len(ACTIONS), HIDDEN_SIZE)
+
+    # Load the initial weights of the target network
     self.target_net.load_state_dict(self.policy_net.state_dict())
+
     self.optimizer = optim.RMSprop(self.policy_net.parameters())
     self.memory = ReplayMemory(10000)
 
@@ -61,15 +58,19 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
     self.memory.push(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events))
-    optimize_model(self, old_game_state, self_action, new_game_state, events)
+    optimize_model(self, self_action)
     
-    # state_to_features is defined in callbacks.py
-    self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
-    
+    check_conditions(self, new_game_state, events)
+
+
+def check_conditions(self, new_game_state: dict, events: List[str]):
+    """
+    Check specific conditions and append corresponding events.
+    """
     if new_game_state["self"][3] in self.visited_tiles:
         events.append(ALREADY_VISITED)
-    
-    self.visited_tiles.append(old_game_state["self"][3])
+        
+    self.visited_tiles.append(new_game_state["self"][3])
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -86,8 +87,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     :param self: The same object that is passed to all of your callbacks.
     """
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
-    self.transitions.append(Transition(state_to_features(last_game_state), [last_action], None, reward_from_events(self, events)))
-
+    self.memory.push(state_to_features(last_game_state), last_action, None, reward_from_events(self, events))
+    
     # Store the model
     with open("my-saved-model.pt", "wb") as file:
         pickle.dump(self.policy_net, file)
@@ -95,57 +96,89 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
 def reward_from_events(self, events: List[str]) -> int:
     """
-    *This is not a required function, but an idea to structure your code.*
+    Calculate the total reward based on a dictionary of event rewards.
 
-    Here you can modify the rewards your agent get so as to en/discourage
-    certain behavior.
+    Args:
+        events (List[str]): List of events that occurred during the game.
+
+    Returns:
+        int: The total reward for the given events.
     """
-    game_rewards = {
-        e.MOVED_LEFT: .1,
-        e.MOVED_RIGHT: .1,
-        e.MOVED_UP: .1,
-        e.MOVED_DOWN: .1,
-        e.WAITED: -1,
-        e.INVALID_ACTION: -1,
-        e.BOMB_DROPPED: .5,
-        e.BOMB_EXPLODED: .5,
+    # Define a dictionary to map events to rewards
+    event_rewards = {
+        e.MOVED_LEFT: 0.1,
+        e.MOVED_RIGHT: 0.1,
+        e.MOVED_UP: 0.1,
+        e.MOVED_DOWN: 0.1,
+        e.WAITED: -0.5,
+        e.INVALID_ACTION: -0.5,
+        e.BOMB_DROPPED: -0.5,
+        e.BOMB_EXPLODED: 0.5,
         e.CRATE_DESTROYED: 3,
         e.COIN_FOUND: 1,
         e.COIN_COLLECTED: 2,
         e.KILLED_OPPONENT: 5,
-        e.KILLED_SELF: -5,
-        e.GOT_KILLED: -100,
+        e.KILLED_SELF: -2,
+        e.GOT_KILLED: -10,
         e.OPPONENT_ELIMINATED: 10,
         e.SURVIVED_ROUND: 10,
-        ALREADY_VISITED: -.5,
+        ALREADY_VISITED: -0.2,
     }
 
-    reward_sum = 0
-    for event in events:
-        if event in game_rewards:
-            reward_sum += game_rewards[event]
-            
-    self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
-    reward_sum -= .1
-    return reward_sum
+    # Calculate the total reward for the given events
+    total_reward = sum(event_rewards.get(event, 0) for event in events)
+    self.logger.info(f"Awarded {total_reward} for events {', '.join(events)}")
+    total_reward -= 0.1
 
-# TODO
-def optimize_model(self, old_state, action, new_state, events):
-    if old_state is None or new_state is None:
-            return
-        
-    old_game_state = torch.tensor(state_to_features(old_state), dtype=torch.float32)
-    new_game_state = torch.tensor(state_to_features(new_state), dtype=torch.float32)
-    reward = reward_from_events(self, events)
+    return total_reward
 
-    action_idx = ACTIONS.index(action)
-    action_mask = torch.zeros(len(ACTIONS), dtype=torch.float32)
-    action_mask[action_idx] = 1.0
 
-    state_action_value = self.policy_net(old_game_state).squeeze()[action_idx]
-    next_state_action_value = self.target_net(new_game_state).max().unsqueeze(0)
-    expected_state_action_value = (next_state_action_value * GAMMA) + reward
-    loss = F.smooth_l1_loss(state_action_value, expected_state_action_value)
+def optimize_model(self, action):
+    if len(self.memory) < BATCH_SIZE:
+        return
+
+    # Sample a batch of transitions from the replay memory
+    transitions = self.memory.sample(BATCH_SIZE)
+    batch = Transition(*zip(*transitions))
+
+    # Create a mask to identify non-final next states
+    non_final_mask = torch.tensor([s is not None for s in batch.next_state], dtype=torch.bool)
+
+    # Filter out non-final next states and convert them to a tensor
+    # Combine the list of NumPy arrays into a single NumPy array
+    non_final_next_states = np.array([s for s in batch.next_state if s is not None], dtype=np.float32)
+
+    # Convert the NumPy array to a PyTorch tensor
+    non_final_next_states = torch.from_numpy(non_final_next_states)
+
+    # Convert the batch data into tensors
+    # Combine the list of NumPy arrays into a single NumPy array
+    state_batch = np.array(batch.state, dtype=np.float32)
+
+    # Convert the NumPy array to a PyTorch tensor
+    state_batch = torch.from_numpy(state_batch)
+    action_batch = torch.zeros((BATCH_SIZE, len(ACTIONS)), dtype=torch.int64)
+
+    # Use a list comprehension to get the action indices for each item in batch.action
+    action_indices = [ACTIONS.index(action) for action in batch.action]
+
+    # Use advanced indexing to set the corresponding elements in action_batch to 1
+    action_batch[range(BATCH_SIZE), action_indices] = 1
+
+    reward_batch = torch.tensor(batch.reward, dtype=torch.float32)
+
+    # Compute Q-values for the current state-action pairs
+    state_action_values = self.policy_net(state_batch).gather(1, action_batch.argmax(dim=1, keepdim=True))
+
+    # Compute the expected Q-values for the next states
+    next_state_values = torch.zeros(BATCH_SIZE, dtype=torch.float32)
+    next_state_values[non_final_mask] = self.target_net(non_final_next_states).max(dim=1).values
+
+    # Compute the expected Q-values using the Bellman equation
+    expected_state_action_values = (next_state_values * GAMMA) + reward_batch
+
+    # Compute the Huber loss
+    loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
 
     # Optimize the model
     self.optimizer.zero_grad()
