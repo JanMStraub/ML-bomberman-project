@@ -58,14 +58,20 @@ def act(self, game_state: dict) -> str:
 
     random_prob = EPS_END + (EPS_START - EPS_END) * math.exp(-1.0 * game_state["step"] / EPS_DECAY)
     
-    if self.train and random.random() < random_prob:
+    if self.train and random.random() > random_prob:
+        #print(random_prob)
+        #print(random.random())
         self.logger.debug("Choosing action purely at random.")
-        return np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.1, 0.1])
+        random_action = np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.1, 0.1])
+        #print(f"random action: {random_action}")
+        self.logger.debug(f"Random action: {random_action}")
+        return random_action
     
     self.logger.debug("Querying model for action.")
     game_state_tensor = torch.from_numpy(state_to_features(game_state)).float()
     action = ACTIONS[self.policy_net(game_state_tensor).argmax().item()]
-    # valid_action = choose_action(self, self.policy_net(game_state_tensor), game_state)
+    #valid_action = choose_action(self, self.policy_net(game_state_tensor), game_state)
+    #print(action)
     self.logger.debug(f"Action: {action}")
 
     return action
@@ -93,9 +99,10 @@ def state_to_features(game_state: dict) -> np.array:
         1: 2,    # Crate
     }
 
-    hybrid_matrix = np.ones(game_state["field"].shape, dtype=np.int)
+    # Create an array of ones with the same shape as the game field
+    hybrid_matrix = np.ones_like(game_state["field"], dtype=np.int)
 
-    # Set Wall and Crate positions
+    # Map cell types to their corresponding values
     for cell_type, value in cell_mappings.items():
         hybrid_matrix[game_state["field"] == cell_type] = value
 
@@ -103,17 +110,16 @@ def state_to_features(game_state: dict) -> np.array:
     agent_position = game_state["self"][3]
     hybrid_matrix[agent_position[0], agent_position[1]] = 3
 
-    if len(game_state["coins"]) != 0:
+    if game_state["coins"]:
         # Set Coin positions
         coin_positions = np.array(game_state["coins"])
         hybrid_matrix[coin_positions[:, 0], coin_positions[:, 1]] = 4
 
-    """
-    # Set bomb positions
-    bomb_positions = np.array(game_state["bombs"][0])
-    hybrid_matrix[bomb_positions[:, 0], bomb_positions[:, 1], 0] = 1
-    """
-    
+    if game_state["bombs"]:
+        # Set bomb positions
+        bomb_positions = np.array([bomb[0] for bomb in game_state["bombs"]])
+        hybrid_matrix[bomb_positions[:, 0], bomb_positions[:, 1]] = 5
+
     # bombe + andere agents
     # liste mit alter position
     # liste mit position von alten agents
