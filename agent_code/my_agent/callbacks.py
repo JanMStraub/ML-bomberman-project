@@ -29,7 +29,8 @@ def setup(self):
     self.reward_history = []
 
     self.value_estimates = np.zeros((17,17))
-    self.policy = np.zeros((17,17,4))
+    #self.policy = np.zeros((17,17,4))
+    self.policy = np.zeros((17,17))
 
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
@@ -60,7 +61,7 @@ def act(self, game_state: dict) -> str:
         # 80%: walk in any direction. 10% wait. 10% bomb.
         return np.random.choice(ACTIONS, p=[.2, .2, .2, .2, .1, .1])"""
     
-    if self.value_estimates.max()>0:
+    if self.value_estimates.max()>0 and self.train:
         # Updated policy 
         x,y = game_state['self'][3]
         actions = ACTIONS[0:4]
@@ -68,15 +69,25 @@ def act(self, game_state: dict) -> str:
         if epsilon:
             chosed_action = np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
         else:
-            chosed_action = actions[np.argmax(self.policy[x,y])]
-        
+            chosed_action = actions[int(self.policy[x,y])]
+            #chosed_action = actions[np.argmax(self.policy[x,y])]    
         return chosed_action
-
-    else:
+    
+    elif self.value_estimates.max()==0 and self.train:
         # Initial policy
         # First level actions 
         actions = ACTIONS[0:4]
         return np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
+    else:
+        x,y = game_state['self'][3]
+        actions = ACTIONS[0:4]
+        #chosed_action = actions[np.argmax(self.model[x,y])]
+        chosed_action = actions[int(self.model[x,y])]
+        print(x,y,chosed_action)
+        #print(self.model[x,y])
+        
+        return chosed_action
+
         
 
 

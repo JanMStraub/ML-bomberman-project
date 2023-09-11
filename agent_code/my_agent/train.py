@@ -74,7 +74,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
 def get_reward(event):
     game_rewards = {
-        e.COIN_COLLECTED: 10,
+        e.COIN_COLLECTED: 5,
         e.KILLED_OPPONENT: 1,
         e.BOMB_DROPPED: -1,
         e.MOVED_LEFT: 1,
@@ -111,9 +111,12 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     t = 0 
     for state_x,state_y in self.state_history:
         self.value_estimates[state_x,state_y] += 0.2 *(sum(self.reward_history[t:])-self.value_estimates[state_x,state_y])
+        #print(self.event_history[t])
         t+=1
 
+
     epsilon_greedy(self)
+    #print(self.total_score)
 
     self.state_history = []
     self.action_history = []
@@ -123,6 +126,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     #print(self.reward_history)
 
     #print(self.events)
+    self.model = self.policy
 
     # Store the model
     with open("my-saved-model.pt", "wb") as file:
@@ -150,30 +154,57 @@ def reward_from_events(self, events: List[str]) -> int:
 
 
 def epsilon_greedy(self):
+    #[0:'UP', 1:'RIGHT', 2:'DOWN', 3:'LEFT']
     for x in range(17):
         for y in range(17):
-            neighbour_values = []
+            neighbour_values = np.zeros(4)
+            # Up 
             if y-1 >= 0:
-                neighbour_values.append(self.value_estimates[x,y-1])
+                neighbour_values[0] = self.value_estimates[x,y-1]
             else:
-                neighbour_values.append(self.value_estimates[x,y])
-            if y+1 <= 16:
-                neighbour_values.append(self.value_estimates[x,y+1])
-            else:
-                neighbour_values.append(self.value_estimates[x,y])
-            if x-1 >= 0:
-                neighbour_values.append(self.value_estimates[x-1,y])
-            else:
-                neighbour_values.append(self.value_estimates[x,y])
+                # left
+                if x-1 >= 0:
+                    neighbour_values[0] = -9999
+                    neighbour_values[3] = -9999
+                # right
+                elif x+1 <= 16:
+                    neighbour_values[0] = -9999
+                    neighbour_values[1] = -9999
+                else:
+                    neighbour_values[0] = -9999
+
+            # Right
             if x+1 <= 16:
-                neighbour_values.append(self.value_estimates[x+1,y])
+                neighbour_values[1] =self.value_estimates[x+1,y]
             else:
-                neighbour_values.append(self.value_estimates[x,y])
+                neighbour_values[1] = -9999
 
-            idx = np.argmax(np.array(neighbour_values))
+            # Down
+            if y+1 <= 16:
+                neighbour_values[2] = self.value_estimates[x,y+1]
+            else:
+                # left
+                if x-1 >= 0:
+                    neighbour_values[2] = -9999
+                    neighbour_values[3] = -9999
+                # right
+                elif x+1 <= 16:
+                    neighbour_values[2] = -9999
+                    neighbour_values[1] = -9999
+                else:
+                    neighbour_values[2] = -9999
 
-            self.policy[x,y] = np.zeros(4)
-            self.policy[x,y][idx] = 1 
+            # Left
+            if x-1 >= 0:
+                neighbour_values[3] = self.value_estimates[x-1,y]
+            else:
+                neighbour_values[3] = -9999
+
+            idx = np.argmax(neighbour_values)
+            self.policy[x,y] = idx
+            #self.policy[x,y] = np.zeros(4)
+            #self.policy[x,y][idx] = 1 
+
         
     return self.policy
 
