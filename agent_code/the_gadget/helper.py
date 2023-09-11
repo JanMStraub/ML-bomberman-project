@@ -30,3 +30,17 @@ def action_filter(self, game_state):
     else:
         # Return the queue of possible actions
         return list(action_queue)
+
+
+def check_blast_radius(game_state, blast_radius):
+    active_bombs_list = game_state["bombs"]
+
+    for (x, y), countdown in active_bombs_list:
+        for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+            for i in range(1, blast_radius + 1):
+                new_x, new_y = x + i * dx, y + i * dy
+                if new_x < 0 or new_x >= len(game_state['field']) or new_y < 0 or new_y >= len(game_state['field'][0]) or game_state['field'][new_x, new_y] == -1:
+                    break
+                if game_state["self"] == (new_x, new_y):
+                    return True
+    return False

@@ -59,11 +59,8 @@ def act(self, game_state: dict) -> str:
     random_prob = EPS_END + (EPS_START - EPS_END) * math.exp(-1.0 * game_state["step"] / EPS_DECAY)
     
     if self.train and random.random() > random_prob:
-        #print(random_prob)
-        #print(random.random())
         self.logger.debug("Choosing action purely at random.")
         random_action = np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.1, 0.1])
-        #print(f"random action: {random_action}")
         self.logger.debug(f"Random action: {random_action}")
         return random_action
     
@@ -71,7 +68,6 @@ def act(self, game_state: dict) -> str:
     game_state_tensor = torch.from_numpy(state_to_features(game_state)).float()
     action = ACTIONS[self.policy_net(game_state_tensor).argmax().item()]
     #valid_action = choose_action(self, self.policy_net(game_state_tensor), game_state)
-    #print(action)
     self.logger.debug(f"Action: {action}")
 
     return action
@@ -120,10 +116,6 @@ def state_to_features(game_state: dict) -> np.array:
         bomb_positions = np.array([bomb[0] for bomb in game_state["bombs"]])
         hybrid_matrix[bomb_positions[:, 0], bomb_positions[:, 1]] = 5
 
-    # bombe + andere agents
-    # liste mit alter position
-    # liste mit position von alten agents
-    print(hybrid_matrix)
     return hybrid_matrix.reshape(-1)
 
 

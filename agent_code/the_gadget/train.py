@@ -9,7 +9,8 @@ import numpy as np
 from .callbacks import state_to_features, ACTIONS
 from .q_network import DQN
 from .replay_memory import ReplayMemory, Transition
-from settings import COLS, ROWS
+from .helper import check_blast_radius
+from settings import COLS, ROWS, BOMB_POWER
 
 # Hyper parameters -- DO modify
 GAMMA = 0.95
@@ -19,7 +20,8 @@ HIDDEN_SIZE = 64
 
 # Events
 ALREADY_VISITED = "ALREADY_VISITED"
-
+IN_BOMB_RADIUS = "IN_BOMB_RADIUS"
+BOMB_EVADED = "BOMB_EVADED"
 
 def setup_training(self):
     """
@@ -57,21 +59,28 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     """
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
+    check_conditions(self, new_game_state, events)
+    
     self.memory.push(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events))
     optimize_model(self, self_action)
     
-    check_conditions(self, new_game_state, events)
-
 
 def check_conditions(self, new_game_state: dict, events: List[str]):
     """
     Check specific conditions and append corresponding events.
     """
     if new_game_state["self"][3] in self.visited_tiles:
+        self.logger.debug("Event: ALREADY_VISITED")
         events.append(ALREADY_VISITED)
         
     self.visited_tiles.append(new_game_state["self"][3])
-
+    
+    if check_blast_radius(new_game_state, BOMB_POWER):
+        self.logger.debug("Event: IN_BOMB_RADIUS")
+        events.append(IN_BOMB_RADIUS)
+    elif len(new_game_state["bombs"]) != 0:
+        self.logger.debug("Event: BOMB_EVADED")
+        events.append(BOMB_EVADED)
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
     """
@@ -104,6 +113,7 @@ def reward_from_events(self, events: List[str]) -> int:
     Returns:
         int: The total reward for the given events.
     """
+    
     # Define a dictionary to map events to rewards
     event_rewards = {
         e.MOVED_LEFT: 0.1,
@@ -123,6 +133,8 @@ def reward_from_events(self, events: List[str]) -> int:
         e.OPPONENT_ELIMINATED: 10,
         e.SURVIVED_ROUND: 10,
         ALREADY_VISITED: -0.2,
+        IN_BOMB_RADIUS: -1,
+        BOMB_EVADED: 2
     }
 
     # Calculate the total reward for the given events
