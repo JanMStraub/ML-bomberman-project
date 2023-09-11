@@ -153,7 +153,7 @@ class Agent:
         self.total_score += delta
 
     def process_game_events(self, game_state):
-        print(self.last_action)
+        #print(self.last_action)
         self.backend.send_event("game_events_occurred", self.last_game_state, self.last_action, game_state, self.events)
 
     def wait_for_game_event_processing(self):

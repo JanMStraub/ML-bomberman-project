@@ -74,13 +74,13 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
 def get_reward(event):
     game_rewards = {
-        e.COIN_COLLECTED: 1,
-        e.KILLED_OPPONENT: -10,
-        e.BOMB_DROPPED: -10,
-        e.MOVED_LEFT: 0,
-        e.MOVED_RIGHT: 0,
-        e.MOVED_UP: 0,
-        e.MOVED_DOWN: 0,
+        e.COIN_COLLECTED: 10,
+        e.KILLED_OPPONENT: 1,
+        e.BOMB_DROPPED: -1,
+        e.MOVED_LEFT: 1,
+        e.MOVED_RIGHT: 1,
+        e.MOVED_UP: 1,
+        e.MOVED_DOWN: 1,
         e.WAITED: 0,
         e.INVALID_ACTION: -1,
         PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
@@ -110,10 +110,15 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     t = 0 
     for state_x,state_y in self.state_history:
-        self.value_estimates[state_x,state_y] += 0.2 *(sum(self.reward_history[t:]-self.value_estimates[state_x,state_y]))
+        self.value_estimates[state_x,state_y] += 0.2 *(sum(self.reward_history[t:])-self.value_estimates[state_x,state_y])
         t+=1
 
     epsilon_greedy(self)
+
+    self.state_history = []
+    self.action_history = []
+    self.event_history = []
+    self.reward_history = []
 
     #print(self.reward_history)
 

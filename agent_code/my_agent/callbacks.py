@@ -64,7 +64,13 @@ def act(self, game_state: dict) -> str:
         # Updated policy 
         x,y = game_state['self'][3]
         actions = ACTIONS[0:4]
-        return actions[np.argmax(self.policy[x,y])]
+        epsilon = np.random.choice([1,0], p = [0.1,0.9])
+        if epsilon:
+            chosed_action = np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
+        else:
+            chosed_action = actions[np.argmax(self.policy[x,y])]
+        
+        return chosed_action
 
     else:
         # Initial policy
