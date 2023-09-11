@@ -10,7 +10,7 @@ from .helper import action_filter
 
 EPS_START = 0.9
 EPS_END = 0.05
-EPS_DECAY = 200
+EPS_DECAY = 350
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 
@@ -123,7 +123,7 @@ def state_to_features(game_state: dict) -> np.array:
     # bombe + andere agents
     # liste mit alter position
     # liste mit position von alten agents
-    
+    print(hybrid_matrix)
     return hybrid_matrix.reshape(-1)
 
 
