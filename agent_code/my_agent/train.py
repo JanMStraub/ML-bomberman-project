@@ -61,20 +61,17 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     self.action_history.append(self_action)
     self.event_history.append(events)
 
-    #self.events.append(self_action)
 
-    #print(self)
-    #print(self.train)
-    #print(self.action)
-    #print(self.reward)
     
+    self.value_estimates = state_to_features(old_game_state)
+    trans = Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events))
 
     # state_to_features is defined in callbacks.py
     self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
 
-def get_reward(event):
+def get_reward(events):
     game_rewards = {
-        e.COIN_COLLECTED: 5,
+        e.COIN_COLLECTED: 2,
         e.KILLED_OPPONENT: 1,
         e.BOMB_DROPPED: -1,
         e.MOVED_LEFT: 1,
@@ -83,9 +80,14 @@ def get_reward(event):
         e.MOVED_DOWN: 1,
         e.WAITED: 0,
         e.INVALID_ACTION: -1,
+        e.TILE_VISITED: -1,
+        e.SURVIVED_ROUND: 0,
         PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
     }
-    return game_rewards[event[0]]
+    reward_ctr = 0
+    for event in events:
+        reward_ctr += game_rewards[event]
+    return reward_ctr
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
     """
@@ -112,6 +114,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     for state_x,state_y in self.state_history:
         self.value_estimates[state_x,state_y] += 0.2 *(sum(self.reward_history[t:])-self.value_estimates[state_x,state_y])
         #print(self.event_history[t])
+        #epsilon_greedy(self)
         t+=1
 
 

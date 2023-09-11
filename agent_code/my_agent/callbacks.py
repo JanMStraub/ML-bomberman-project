@@ -29,7 +29,6 @@ def setup(self):
     self.reward_history = []
 
     self.value_estimates = np.zeros((17,17))
-    #self.policy = np.zeros((17,17,4))
     self.policy = np.zeros((17,17))
 
     if self.train or not os.path.isfile("my-saved-model.pt"):
@@ -61,19 +60,19 @@ def act(self, game_state: dict) -> str:
         # 80%: walk in any direction. 10% wait. 10% bomb.
         return np.random.choice(ACTIONS, p=[.2, .2, .2, .2, .1, .1])"""
     
-    if self.value_estimates.max()>0 and self.train:
+    if game_state['round']>1 and self.train:
         # Updated policy 
         x,y = game_state['self'][3]
         actions = ACTIONS[0:4]
-        epsilon = np.random.choice([1,0], p = [0.1,0.9])
+        epsilon = np.random.choice([1,0], p = [0.2,0.8])
         if epsilon:
-            chosed_action = np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
+            choosed_action = np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
         else:
-            chosed_action = actions[int(self.policy[x,y])]
+            choosed_action = actions[int(self.policy[x,y])]
             #chosed_action = actions[np.argmax(self.policy[x,y])]    
-        return chosed_action
+        return choosed_action
     
-    elif self.value_estimates.max()==0 and self.train:
+    elif game_state['round']==1 and self.train:
         # Initial policy
         # First level actions 
         actions = ACTIONS[0:4]
@@ -82,11 +81,11 @@ def act(self, game_state: dict) -> str:
         x,y = game_state['self'][3]
         actions = ACTIONS[0:4]
         #chosed_action = actions[np.argmax(self.model[x,y])]
-        chosed_action = actions[int(self.model[x,y])]
-        print(x,y,chosed_action)
+        choosed_action = actions[int(self.model[x,y])]
+        #print(x,y,choosed_action)
         #print(self.model[x,y])
         
-        return chosed_action
+        return choosed_action
 
         
 
@@ -114,14 +113,25 @@ def state_to_features(game_state: dict) -> np.array:
     # This is the dict before the game begins and after it ends
     if game_state is None:
         return None
+    
+    field_map = game_state['field']
+    coin_map = np.zeros(field_map.shape)
 
+    for x in range(field_map.shape[0]):
+        for y in range(field_map.shape[1]):
+            if (x,y) in game_state['coins']:
+                field_map[x,y] += 1 
+                #coin_map[x,y] = 1 
+
+    return field_map
 
     # Create features by using field information and coin location 
 
 
     # For example, you could construct several channels of equal shape, ...
     channels = []
-    channels.append(...)
+    channels.append(field_map)
+    channels.append(coin_map)
     # concatenate them as a feature tensor (they must have the same shape), ...
     stacked_channels = np.stack(channels)
     # and return them as a vector
