@@ -111,8 +111,11 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     t = 0 
     for state_x,state_y in self.state_history:
         self.value_estimates[state_x,state_y] += 0.2 *(sum(self.reward_history[t:]-self.value_estimates[state_x,state_y]))
+        t+=1
 
-    print(self.reward_history)
+    epsilon_greedy(self)
+
+    #print(self.reward_history)
 
     #print(self.events)
 
@@ -141,6 +144,33 @@ def reward_from_events(self, events: List[str]) -> int:
     return reward_sum
 
 
+def epsilon_greedy(self):
+    for x in range(17):
+        for y in range(17):
+            neighbour_values = []
+            if y-1 >= 0:
+                neighbour_values.append(self.value_estimates[x,y-1])
+            else:
+                neighbour_values.append(self.value_estimates[x,y])
+            if y+1 <= 16:
+                neighbour_values.append(self.value_estimates[x,y+1])
+            else:
+                neighbour_values.append(self.value_estimates[x,y])
+            if x-1 >= 0:
+                neighbour_values.append(self.value_estimates[x-1,y])
+            else:
+                neighbour_values.append(self.value_estimates[x,y])
+            if x+1 <= 16:
+                neighbour_values.append(self.value_estimates[x+1,y])
+            else:
+                neighbour_values.append(self.value_estimates[x,y])
+
+            idx = np.argmax(np.array(neighbour_values))
+
+            self.policy[x,y] = np.zeros(4)
+            self.policy[x,y][idx] = 1 
+        
+    return self.policy
 
 
 def mc_eval():

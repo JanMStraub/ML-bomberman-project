@@ -29,6 +29,7 @@ def setup(self):
     self.reward_history = []
 
     self.value_estimates = np.zeros((17,17))
+    self.policy = np.zeros((17,17,4))
 
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
@@ -53,11 +54,27 @@ def act(self, game_state: dict) -> str:
     # todo Exploration vs exploitation
     random_prob = .1
     #print(self.train)
-    if self.train and random.random() < random_prob:
+
+    """if self.train and random.random() < random_prob:
         self.logger.debug("Choosing action purely at random.")
         # 80%: walk in any direction. 10% wait. 10% bomb.
-        return np.random.choice(ACTIONS, p=[.2, .2, .2, .2, .1, .1])
+        return np.random.choice(ACTIONS, p=[.2, .2, .2, .2, .1, .1])"""
     
+    if self.value_estimates.max()>0:
+        # Updated policy 
+        x,y = game_state['self'][3]
+        actions = ACTIONS[0:4]
+        return actions[np.argmax(self.policy[x,y])]
+
+    else:
+        # Initial policy
+        # First level actions 
+        actions = ACTIONS[0:4]
+        return np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
+        
+
+
+
     self.logger.debug("Querying model for action.")
     #print(np.random.choice(ACTIONS, p=self.model))
     return np.random.choice(ACTIONS, p=self.model)
