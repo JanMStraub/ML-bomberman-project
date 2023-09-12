@@ -63,11 +63,11 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
 
     
-    self.value_estimates = state_to_features(old_game_state)
-    trans = Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events))
+    self.value_estimates = state_to_features(self.value_estimates,old_game_state, new_game_state)
+    #trans = Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events))
 
     # state_to_features is defined in callbacks.py
-    self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
+    #self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
 
 def get_reward(events):
     game_rewards = {
@@ -103,7 +103,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     :param self: The same object that is passed to all of your callbacks.
     """
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
-    self.transitions.append(Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events)))
+    #self.transitions.append(Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events)))
 
     for event in self.event_history: 
         self.reward_history.append(get_reward(event))
@@ -116,6 +116,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         #print(self.event_history[t])
         #epsilon_greedy(self)
         t+=1
+        if t%50 == 0:
+            print()
 
 
     epsilon_greedy(self)

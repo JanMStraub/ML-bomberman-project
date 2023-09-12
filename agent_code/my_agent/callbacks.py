@@ -96,7 +96,7 @@ def act(self, game_state: dict) -> str:
     return np.random.choice(ACTIONS, p=self.model)
     
 
-def state_to_features(game_state: dict) -> np.array:
+def state_to_features(value_estimates, old_game_state: dict, new_game_state: dict) -> np.array:
     """
     *This is not a required function, but an idea to structure your code.*
 
@@ -111,16 +111,23 @@ def state_to_features(game_state: dict) -> np.array:
     :return: np.array
     """
     # This is the dict before the game begins and after it ends
-    if game_state is None:
+    if old_game_state is None:
         return None
     
-    field_map = game_state['field']
+    old_pos = old_game_state['self'][3]
+    new_pos = new_game_state['self'][3]
+    field_map = old_game_state['field']
     coin_map = np.zeros(field_map.shape)
 
     for x in range(field_map.shape[0]):
         for y in range(field_map.shape[1]):
-            if (x,y) in game_state['coins']:
-                field_map[x,y] += 1 
+            value_estimates[x,y] += field_map[x,y]
+            if (x,y) in old_game_state['coins']:
+                value_estimates[x,y] += 1 
+                #field_map[x,y] += 1 
+            if old_pos == (x,y) and old_pos != new_pos:
+                value_estimates[x,y] += 1 
+                #field_map[x,y] += 1 
                 #coin_map[x,y] = 1 
 
     return field_map
