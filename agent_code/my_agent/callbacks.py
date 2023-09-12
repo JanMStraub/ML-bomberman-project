@@ -28,8 +28,8 @@ def setup(self):
     self.event_history = []
     self.reward_history = []
 
-    self.value_estimates = np.zeros((17,17))
-    self.policy = np.zeros((17,17))
+    self.value_estimates = np.zeros((11,4))
+    self.policy = np.zeros((11,4))
 
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
@@ -62,13 +62,14 @@ def act(self, game_state: dict) -> str:
     
     if game_state['round']>1 and self.train:
         # Updated policy 
-        x,y = game_state['self'][3]
+        #x,y = game_state['self'][3]
+        state = extract_state(game_state)
         actions = ACTIONS[0:4]
         epsilon = np.random.choice([1,0], p = [0.2,0.8])
         if epsilon:
             choosed_action = np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
         else:
-            choosed_action = actions[int(self.policy[x,y])]
+            choosed_action = actions[np.argmax(self.policy[state,:])]
             #chosed_action = actions[np.argmax(self.policy[x,y])]    
         return choosed_action
     
@@ -78,10 +79,12 @@ def act(self, game_state: dict) -> str:
         actions = ACTIONS[0:4]
         return np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
     else:
-        x,y = game_state['self'][3]
+        #x,y = game_state['self'][3]
+        state = extract_state(game_state)
         actions = ACTIONS[0:4]
         #chosed_action = actions[np.argmax(self.model[x,y])]
-        choosed_action = actions[int(self.model[x,y])]
+        choosed_action = actions[np.argmax(self.policy[state,:])]
+        #choosed_action = actions[int(self.model[x,y])]
         #print(x,y,choosed_action)
         #print(self.model[x,y])
         
@@ -143,3 +146,68 @@ def state_to_features(value_estimates, old_game_state: dict, new_game_state: dic
     stacked_channels = np.stack(channels)
     # and return them as a vector
     return stacked_channels.reshape(-1)
+
+def extract_state(old_game_state):
+    
+    old_pos = old_game_state['self'][3]
+    field_map = old_game_state['field']
+
+    neighbourhood = []
+
+    left = field_map[old_pos[0]-1,old_pos[1]]
+    right = field_map[old_pos[0]+1,old_pos[1]]
+    top = field_map[old_pos[0],old_pos[1]-1]
+    down = field_map[old_pos[0],old_pos[1]+1]
+
+    neighbourhood.append(left)
+    neighbourhood.append(right)
+    neighbourhood.append(top)
+    neighbourhood.append(down)
+
+    #print(field_map[old_pos]) 
+
+    # right top corner
+    if neighbourhood == [0,-1,-1,0]:
+        #print("right_top_corner")
+        state = 0
+    # right bottom corner
+    elif neighbourhood == [0,-1,0,-1]:
+        #print("right_bottom_corner")
+        state = 1
+    # left top corner
+    elif neighbourhood == [-1,0,-1,0]:
+        #print("left_top_corner")
+        state = 2
+    # left bottom corner
+    elif neighbourhood == [-1,0,0,-1]:
+        #print("left_bottom_corner")
+        state = 3
+    # top down
+    elif neighbourhood == [0,0,-1,-1]:
+        #print("top_bottom")
+        state = 4
+    # left right
+    elif neighbourhood == [-1,-1,0,0]:
+        #print("left_right")
+        state = 5
+    # left
+    elif neighbourhood == [-1,0,0,0]:
+        #print("left")
+        state = 6
+    # right
+    elif neighbourhood == [0,-1,0,0]:
+        #print("right")
+        state = 7
+    # top
+    elif neighbourhood == [0,0,-1,0]:
+        #print("top")
+        state = 8
+    # bottom 
+    elif neighbourhood == [0,0,0,-1]:
+        #print("bottom")
+        state = 9
+    # free
+    else:
+        state = 10
+
+    return state 
