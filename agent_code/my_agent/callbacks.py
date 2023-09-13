@@ -69,56 +69,22 @@ def act(self, game_state: dict) -> str:
     :param game_state: The dictionary that describes everything on the board.
     :return: The action to take as a string.
     """
-    # todo Exploration vs exploitation
-    random_prob = .1
-    #print(self.train)
-
-    """if self.train and random.random() < random_prob:
-        self.logger.debug("Choosing action purely at random.")
-        # 80%: walk in any direction. 10% wait. 10% bomb.
-        return np.random.choice(ACTIONS, p=[.2, .2, .2, .2, .1, .1])"""
-    
     if game_state['round']>1 and self.train:
-        # Updated policy 
-        #x,y = game_state['self'][3]
         state = extract_state(game_state)
         actions = ACTIONS[0:4]
         action = np.random.choice(actions, p = self.policy[state,:])
         return action
-
-        """epsilon = np.random.choice([1,0], p = [0.2,0.8])
-        if epsilon:
-            choosed_action = np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
-        else:
-            choosed_action = actions[np.argmax(self.policy[state,:])]
-            #chosed_action = actions[np.argmax(self.policy[x,y])]    
-        return choosed_action"""
-    
+    # Initial policy
     elif game_state['round']==1 and self.train:
-        # Initial policy
         # First level actions 
         actions = ACTIONS[0:4]
         return np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
     else:
-        #x,y = game_state['self'][3]
         state = extract_state(game_state)
         actions = ACTIONS[0:4]
-        #chosed_action = actions[np.argmax(self.model[x,y])]
         choosed_action = actions[np.argmax(self.policy[state,:])]
-        #choosed_action = actions[int(self.model[x,y])]
-        #print(x,y,choosed_action)
-        #print(self.model[x,y])
-        
         return choosed_action
-
-        
-
-
-
-    self.logger.debug("Querying model for action.")
-    #print(np.random.choice(ACTIONS, p=self.model))
-    return np.random.choice(ACTIONS, p=self.model)
-    
+   
 
 def state_to_features(value_estimates, old_game_state: dict, new_game_state: dict) -> np.array:
     """
@@ -148,17 +114,12 @@ def state_to_features(value_estimates, old_game_state: dict, new_game_state: dic
             value_estimates[x,y] += field_map[x,y]
             if (x,y) in old_game_state['coins']:
                 value_estimates[x,y] += 1 
-                #field_map[x,y] += 1 
             if old_pos == (x,y) and old_pos != new_pos:
                 value_estimates[x,y] += 1 
-                #field_map[x,y] += 1 
-                #coin_map[x,y] = 1 
 
     return field_map
 
     # Create features by using field information and coin location 
-
-
     # For example, you could construct several channels of equal shape, ...
     channels = []
     channels.append(field_map)
@@ -169,7 +130,10 @@ def state_to_features(value_estimates, old_game_state: dict, new_game_state: dic
     return stacked_channels.reshape(-1)
 
 def extract_state(old_game_state):
-    
+    """
+    First level for collecting coins has 11 different states which describe 
+    the neighbourhood of the current agent position
+    """
     old_pos = old_game_state['self'][3]
     field_map = old_game_state['field']
 
@@ -184,8 +148,6 @@ def extract_state(old_game_state):
     neighbourhood.append(right)
     neighbourhood.append(top)
     neighbourhood.append(down)
-
-    #print(field_map[old_pos]) 
 
     # right top corner
     if neighbourhood == [0,-1,-1,0]:

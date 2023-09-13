@@ -59,12 +59,10 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     if ...:
         events.append(PLACEHOLDER_EVENT)"""
 
-    #self.state_history.append(old_game_state['self'][3])
+    
+    self.state_history.append(extract_state(old_game_state))
     self.action_history.append(self_action)
     self.event_history.append(events)
-
-
-    self.state_history.append(extract_state(old_game_state))
 
     
     #self.value_estimates = state_to_features(self.value_estimates,old_game_state, new_game_state)
@@ -109,55 +107,9 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
     #self.transitions.append(Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events)))
 
-    for event in self.event_history: 
-        self.reward_history.append(get_reward(event))
-
-    #print(sum(self.reward_history[3:]))
-
-    """ t = 0 
-    for state_x,state_y in self.state_history:
-        self.value_estimates[state_x,state_y] += 0.2 *(sum(self.reward_history[t:])-self.value_estimates[state_x,state_y])
-        #print(self.event_history[t])
-        #epsilon_greedy(self)
-        t+=1
-        if t%50 == 0:
-            print()"""
-    
+    # MC-Control for update value-function and policy 
     mc_control(self)
 
-    """    t = 0
-    for state in self.state_history:
-        while t < len(self.state_history)-1:
-            if self.action_history[t] == 'UP':
-                action = 0
-            elif self.action_history[t] == 'RIGHT':
-                action = 1 
-            elif self.action_history[t] == 'DOWN':
-                action = 2
-            else:
-                action = 3
-            #[0:'UP', 1:'RIGHT', 2:'DOWN', 3:'LEFT']
-            self.value_estimates[state,action] += 0.2 *(sum(self.reward_history[t+1:])-self.value_estimates[state,action])
-            #print(self.event_history[t])
-            #epsilon_greedy(self)
-            
-            #print(state,self.action_history[t],self.event_history[t],self.reward_history[t])
-            t+=1
-            if t%50 == 0:
-                print()"""
-
-    #greedy(self)
-    #epsilon_greedy(self)
-    #print(self.total_score)
-
-    self.state_history = []
-    self.action_history = []
-    self.event_history = []
-    self.reward_history = []
-
-    #print(self.reward_history)
-
-    #print(self.events)
     self.model = self.policy
 
     # Store the model
@@ -185,81 +137,13 @@ def reward_from_events(self, events: List[str]) -> int:
     return reward_sum
 
 
-def greedy(self):
-    self.policy = np.zeros((11,4))
-
-    t = 0 
-    epsilon = np.random.choice([1,0], p = [0,1])
-    for estimates in self.value_estimates:
-        if epsilon:
-            idx = np.random.choice([0,1,2,3], p = [0.25,0.25,0.25,0.25])
-            self.policy[t,idx] = 1
-        else:
-            idx = np.argmax(estimates)
-            self.policy[t,idx] = 1
-        t+=1
-    return self.policy 
-
-def epsilon_greedy(self):
-    #[0:'UP', 1:'RIGHT', 2:'DOWN', 3:'LEFT']
-    for x in range(17):
-        for y in range(17):
-            neighbour_values = np.zeros(4)
-            # Up 
-            if y-1 >= 0:
-                neighbour_values[0] = self.value_estimates[x,y-1]
-            else:
-                # left
-                if x-1 >= 0:
-                    neighbour_values[0] = -9999
-                    neighbour_values[3] = -9999
-                # right
-                elif x+1 <= 16:
-                    neighbour_values[0] = -9999
-                    neighbour_values[1] = -9999
-                else:
-                    neighbour_values[0] = -9999
-
-            # Right
-            if x+1 <= 16:
-                neighbour_values[1] =self.value_estimates[x+1,y]
-            else:
-                neighbour_values[1] = -9999
-
-            # Down
-            if y+1 <= 16:
-                neighbour_values[2] = self.value_estimates[x,y+1]
-            else:
-                # left
-                if x-1 >= 0:
-                    neighbour_values[2] = -9999
-                    neighbour_values[3] = -9999
-                # right
-                elif x+1 <= 16:
-                    neighbour_values[2] = -9999
-                    neighbour_values[1] = -9999
-                else:
-                    neighbour_values[2] = -9999
-
-            # Left
-            if x-1 >= 0:
-                neighbour_values[3] = self.value_estimates[x-1,y]
-            else:
-                neighbour_values[3] = -9999
-
-            idx = np.argmax(neighbour_values)
-            self.policy[x,y] = idx
-            #self.policy[x,y] = np.zeros(4)
-            #self.policy[x,y][idx] = 1 
-
-        
-    return self.policy
-
-
 def mc_control(self):
     """
     Monte-Carlo eControl 
     """
+    for event in self.event_history: 
+            self.reward_history.append(get_reward(event))
+
     epsilon = 0.3
     g = 0 
     t = 0
@@ -281,10 +165,16 @@ def mc_control(self):
             self.value_estimates[state,action] = mean(self.returns[state][action])
             a_star = np.argmax(self.value_estimates[state,:])
 
+            # greedy 
             for i in range(4):
                 if i == a_star:
                     self.policy[state,i] = 1-epsilon+epsilon/4
                 else:
                     self.policy[state,i] = epsilon/4
+    
+    self.state_history = []
+    self.action_history = []
+    self.event_history = []
+    self.reward_history = []
                 
     return 0
