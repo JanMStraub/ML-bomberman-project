@@ -31,6 +31,23 @@ def setup(self):
     self.value_estimates = np.zeros((11,4))
     self.policy = np.zeros((11,4))
 
+    for i in range(11):
+        for j in range(4):
+            self.policy[i,j] = 0.25
+
+
+    self.returns = [[[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]]]
+
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
         weights = np.random.rand(len(ACTIONS))
@@ -39,6 +56,7 @@ def setup(self):
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
             self.model = pickle.load(file)
+            self.policy = self.model
 
 
 
@@ -65,13 +83,16 @@ def act(self, game_state: dict) -> str:
         #x,y = game_state['self'][3]
         state = extract_state(game_state)
         actions = ACTIONS[0:4]
-        epsilon = np.random.choice([1,0], p = [0.2,0.8])
+        action = np.random.choice(actions, p = self.policy[state,:])
+        return action
+
+        """epsilon = np.random.choice([1,0], p = [0.2,0.8])
         if epsilon:
             choosed_action = np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
         else:
             choosed_action = actions[np.argmax(self.policy[state,:])]
             #chosed_action = actions[np.argmax(self.policy[x,y])]    
-        return choosed_action
+        return choosed_action"""
     
     elif game_state['round']==1 and self.train:
         # Initial policy

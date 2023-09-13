@@ -8,6 +8,8 @@ from .callbacks import state_to_features, extract_state
 
 import numpy as np
 
+from statistics import mean
+
 # This is only an example!
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
@@ -73,15 +75,15 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
 def get_reward(events):
     game_rewards = {
-        e.COIN_COLLECTED: 20,
+        e.COIN_COLLECTED: 2,
         e.KILLED_OPPONENT: 1,
         e.BOMB_DROPPED: -1,
-        e.MOVED_LEFT: 10,
-        e.MOVED_RIGHT: 10,
-        e.MOVED_UP: 10,
-        e.MOVED_DOWN: 10,
+        e.MOVED_LEFT: 1,
+        e.MOVED_RIGHT: 1,
+        e.MOVED_UP: 1,
+        e.MOVED_DOWN: 1,
         e.WAITED: 0,
-        e.INVALID_ACTION: -10,
+        e.INVALID_ACTION: -100,
         e.TILE_VISITED: -1,
         e.SURVIVED_ROUND: 0,
         PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
@@ -120,8 +122,10 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         t+=1
         if t%50 == 0:
             print()"""
+    
+    mc_control(self)
 
-    t = 0
+    """    t = 0
     for state in self.state_history:
         while t < len(self.state_history)-1:
             if self.action_history[t] == 'UP':
@@ -140,9 +144,9 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
             #print(state,self.action_history[t],self.event_history[t],self.reward_history[t])
             t+=1
             if t%50 == 0:
-                print()
+                print()"""
 
-            greedy(self)
+    #greedy(self)
     #epsilon_greedy(self)
     #print(self.total_score)
 
@@ -185,7 +189,7 @@ def greedy(self):
     self.policy = np.zeros((11,4))
 
     t = 0 
-    epsilon = np.random.choice([1,0], p = [0.2,0.8])
+    epsilon = np.random.choice([1,0], p = [0,1])
     for estimates in self.value_estimates:
         if epsilon:
             idx = np.random.choice([0,1,2,3], p = [0.25,0.25,0.25,0.25])
@@ -252,8 +256,35 @@ def epsilon_greedy(self):
     return self.policy
 
 
-def mc_eval():
+def mc_control(self):
     """
-    Monte-Carlo evaluation.
+    Monte-Carlo eControl 
     """
+    epsilon = 0.3
+    g = 0 
+    t = 0
+    gamma = 0.95 
+    for state in self.state_history:
+        #while t < len(self.state_history)-1:
+            if self.action_history[t] == 'UP':
+                action = 0
+            elif self.action_history[t] == 'RIGHT':
+                action = 1 
+            elif self.action_history[t] == 'DOWN':
+                action = 2
+            else:
+                action = 3
+            #g = pow(gamma,t-1) * g + self.reward_history[t]
+            g += self.reward_history[t]
+
+            self.returns[state][action].append(g)
+            self.value_estimates[state,action] = mean(self.returns[state][action])
+            a_star = np.argmax(self.value_estimates[state,:])
+
+            for i in range(4):
+                if i == a_star:
+                    self.policy[state,i] = 1-epsilon+epsilon/4
+                else:
+                    self.policy[state,i] = epsilon/4
+                
     return 0
