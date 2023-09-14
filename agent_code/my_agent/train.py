@@ -60,9 +60,10 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         events.append(PLACEHOLDER_EVENT)"""
 
     
-    self.state_history.append(extract_state(old_game_state))
+    self.state_history.append(extract_state(self,old_game_state))
     self.action_history.append(self_action)
     self.event_history.append(events)
+    self.visited_positions.append(old_game_state['self'][3])
 
     
     #self.value_estimates = state_to_features(self.value_estimates,old_game_state, new_game_state)
@@ -71,22 +72,27 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     # state_to_features is defined in callbacks.py
     #self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
 
-def get_reward(events):
+def get_reward(self,game_state,events):
     game_rewards = {
         e.COIN_COLLECTED: 2,
         e.KILLED_OPPONENT: 1,
         e.BOMB_DROPPED: -1,
-        e.MOVED_LEFT: 1,
-        e.MOVED_RIGHT: 1,
-        e.MOVED_UP: 1,
-        e.MOVED_DOWN: 1,
+        e.MOVED_LEFT: 0,
+        e.MOVED_RIGHT: 0,
+        e.MOVED_UP: 0,
+        e.MOVED_DOWN: 0,
         e.WAITED: 0,
-        e.INVALID_ACTION: -100,
+        e.INVALID_ACTION: -2,
         e.TILE_VISITED: -1,
         e.SURVIVED_ROUND: 0,
         PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
     }
-    reward_ctr = 0
+    pos = game_state['self'][3]
+    if pos in self.visited_positions:
+        reward_ctr = -1
+    else:
+        reward_ctr = 0
+
     for event in events:
         reward_ctr += game_rewards[event]
     return reward_ctr
@@ -108,11 +114,12 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     #self.transitions.append(Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events)))
 
     # MC-Control for update value-function and policy 
-    mc_control(self)
+    mc_control(self,last_game_state)
 
     self.model = self.policy
 
     # Store the model
+
     with open("my-saved-model.pt", "wb") as file:
         pickle.dump(self.model, file)
 
@@ -137,14 +144,14 @@ def reward_from_events(self, events: List[str]) -> int:
     return reward_sum
 
 
-def mc_control(self):
+def mc_control(self,game_state):
     """
     Monte-Carlo eControl 
     """
     for event in self.event_history: 
-            self.reward_history.append(get_reward(event))
+            self.reward_history.append(get_reward(self,game_state,event))
 
-    epsilon = 0.3
+    epsilon = 0.2
     g = 0 
     t = 0
     gamma = 0.95 
@@ -158,8 +165,8 @@ def mc_control(self):
                 action = 2
             else:
                 action = 3
-            #g = pow(gamma,t-1) * g + self.reward_history[t]
-            g += self.reward_history[t]
+            g = pow(gamma,t) * g + self.reward_history[t]
+            #g += self.reward_history[t]
 
             self.returns[state][action].append(g)
             self.value_estimates[state,action] = mean(self.returns[state][action])
@@ -171,10 +178,12 @@ def mc_control(self):
                     self.policy[state,i] = 1-epsilon+epsilon/4
                 else:
                     self.policy[state,i] = epsilon/4
+            t+=1
     
     self.state_history = []
     self.action_history = []
     self.event_history = []
     self.reward_history = []
-                
+    self.visited_positions = []
+
     return 0

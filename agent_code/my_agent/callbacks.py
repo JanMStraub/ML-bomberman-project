@@ -27,11 +27,12 @@ def setup(self):
     self.action_history = []
     self.event_history = []
     self.reward_history = []
+    self.visited_positions = []
 
-    self.value_estimates = np.zeros((11,4))
-    self.policy = np.zeros((11,4))
+    self.value_estimates = np.zeros((97,4))
+    self.policy = np.zeros((97,4))
 
-    for i in range(11):
+    for i in range(97):
         for j in range(4):
             self.policy[i,j] = 0.25
 
@@ -46,7 +47,94 @@ def setup(self):
                     [[],[],[],[]],
                     [[],[],[],[]],
                     [[],[],[],[]],
-                    [[],[],[],[]]]
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]],
+                    [[],[],[],[]]]                
+                    
 
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
@@ -70,7 +158,7 @@ def act(self, game_state: dict) -> str:
     :return: The action to take as a string.
     """
     if game_state['round']>1 and self.train:
-        state = extract_state(game_state)
+        state = extract_state(self,game_state)
         actions = ACTIONS[0:4]
         action = np.random.choice(actions, p = self.policy[state,:])
         return action
@@ -80,7 +168,7 @@ def act(self, game_state: dict) -> str:
         actions = ACTIONS[0:4]
         return np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
     else:
-        state = extract_state(game_state)
+        state = extract_state(self,game_state)
         actions = ACTIONS[0:4]
         choosed_action = actions[np.argmax(self.policy[state,:])]
         return choosed_action
@@ -129,13 +217,18 @@ def state_to_features(value_estimates, old_game_state: dict, new_game_state: dic
     # and return them as a vector
     return stacked_channels.reshape(-1)
 
-def extract_state(old_game_state):
+def extract_state(self,old_game_state):
     """
     First level for collecting coins has 11 different states which describe 
     the neighbourhood of the current agent position
     """
     old_pos = old_game_state['self'][3]
     field_map = old_game_state['field']
+
+    top_pos = (old_pos[0],old_pos[1]-1)
+    low_pos = (old_pos[0],old_pos[1]+1)
+    left_pos = (old_pos[0]-1,old_pos[1])
+    right_pos = (old_pos[0]+1,old_pos[1])
 
     neighbourhood = []
 
@@ -152,45 +245,304 @@ def extract_state(old_game_state):
     # right top corner
     if neighbourhood == [0,-1,-1,0]:
         #print("right_top_corner")
-        state = 0
+        # visited left pos
+        if left_pos in self.visited_positions and low_pos not in self.visited_positions:
+            state = 0 
+        # visited low pos
+        elif low_pos in self.visited_positions and left_pos not in self.visited_positions:
+            state = 1 
+        # both neighbour positions visited 
+        elif low_pos in self.visited_positions and left_pos in self.visited_positions:
+            state = 2 
+        # both neighbour positions not visited 
+        else:
+            state = 3
     # right bottom corner
     elif neighbourhood == [0,-1,0,-1]:
         #print("right_bottom_corner")
-        state = 1
+        # visited left pos
+        if left_pos in self.visited_positions and top_pos not in self.visited_positions:
+            state = 4 
+        # visited top pos
+        elif top_pos in self.visited_positions and left_pos not in self.visited_positions:
+            state = 5 
+        # both neighbour positions visited 
+        elif top_pos in self.visited_positions and left_pos in self.visited_positions:
+            state = 6 
+        # both neighbour positions not visited 
+        else:
+            state = 7
     # left top corner
     elif neighbourhood == [-1,0,-1,0]:
         #print("left_top_corner")
-        state = 2
+        # visited right pos
+        if right_pos in self.visited_positions and low_pos not in self.visited_positions:
+            state = 8 
+        # visited low pos
+        elif low_pos in self.visited_positions and right_pos not in self.visited_positions:
+            state = 9 
+        # both neighbour positions visited 
+        elif low_pos in self.visited_positions and right_pos in self.visited_positions:
+            state = 10 
+        # both neighbour positions not visited 
+        else:
+            state = 11
     # left bottom corner
     elif neighbourhood == [-1,0,0,-1]:
         #print("left_bottom_corner")
-        state = 3
+        # visited right pos
+        if right_pos in self.visited_positions and top_pos not in self.visited_positions:
+            state = 12
+        # visited top pos
+        elif top_pos in self.visited_positions and right_pos not in self.visited_positions:
+            state = 13 
+        # both neighbour positions visited 
+        elif top_pos in self.visited_positions and right_pos in self.visited_positions:
+            state = 14 
+        # both neighbour positions not visited 
+        else:
+            state = 15
     # top down
     elif neighbourhood == [0,0,-1,-1]:
         #print("top_bottom")
-        state = 4
+        # visited right pos
+        if right_pos in self.visited_positions and left_pos not in self.visited_positions:
+            state = 16
+        # visited left pos
+        elif left_pos in self.visited_positions and right_pos not in self.visited_positions:
+            state = 17 
+        # both neighbour positions vistiid 
+        elif left_pos in self.visited_positions and right_pos in self.visited_positions:
+            state = 18 
+        # both neighbour positions not visited 
+        else:
+            state = 19
     # left right
     elif neighbourhood == [-1,-1,0,0]:
         #print("left_right")
-        state = 5
+        # visited top pos
+        if top_pos in self.visited_positions and low_pos not in self.visited_positions:
+            state = 20
+        # visited low pos
+        elif low_pos in self.visited_positions and top_pos not in self.visited_positions:
+            state = 21 
+        # both neighbour positions visited 
+        elif low_pos in self.visited_positions and top_pos in self.visited_positions:
+            state = 22 
+        # both neighbour positions visited or not visited 
+        else:
+            state = 23
     # left
     elif neighbourhood == [-1,0,0,0]:
         #print("left")
-        state = 6
+        # visited top pos and right pos 
+        if top_pos in self.visited_positions and right_pos in self.visited_positions and low_pos not in self.visited_positions:
+            state = 24
+        # visited top pos and left pos 
+        elif top_pos in self.visited_positions and right_pos not in self.visited_positions and low_pos in self.visited_positions:
+            state = 25 
+        # visited only top pos
+        elif top_pos in self.visited_positions and right_pos not in self.visited_positions and low_pos not in self.visited_positions:
+            state = 26
+
+        # visited low pos and right pos 
+        elif low_pos in self.visited_positions and right_pos in self.visited_positions and top_pos not in self.visited_positions:            
+            state = 27
+        # visited low pos and top pos 
+        elif low_pos in self.visited_positions and right_pos not in self.visited_positions and top_pos in self.visited_positions:
+            state = 28 
+        # visited only low pos
+        elif low_pos in self.visited_positions and right_pos not in self.visited_positions and top_pos not in self.visited_positions:            
+            state = 29
+
+        # visited right pos and top pos
+        elif right_pos in self.visited_positions and top_pos in self.visited_positions and low_pos not in self.visited_positions:
+            state = 30
+        # visited right pos and low pos
+        elif right_pos in self.visited_positions and top_pos not in self.visited_positions and low_pos in self.visited_positions:
+            state = 31 
+        # visited only right pos
+        elif right_pos in self.visited_positions and top_pos not in self.visited_positions and low_pos not in self.visited_positions:
+            state = 32
+
+        # all neighbour positions vistied or not visited 
+        else:
+            state = 33
     # right
     elif neighbourhood == [0,-1,0,0]:
         #print("right")
-        state = 7
+        # visited top pos
+        if top_pos in self.visited_positions and left_pos in self.visited_positions and low_pos not in self.visited_positions:
+            state = 34
+        # visited low pos
+        elif top_pos in self.visited_positions and left_pos not in self.visited_positions and low_pos in self.visited_positions:
+            state = 35 
+        # visited left pos
+        elif top_pos in self.visited_positions and left_pos not in self.visited_positions and low_pos not in self.visited_positions:
+            state = 36
+
+        # visited low pos
+        elif low_pos in self.visited_positions and left_pos in self.visited_positions and top_pos not in self.visited_positions:
+            state = 37
+        # visited low pos
+        elif low_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos in self.visited_positions:
+            state = 38 
+        # visited left pos
+        elif low_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos not in self.visited_positions:
+            state = 39
+
+        # visited left pos
+        elif left_pos in self.visited_positions and top_pos in self.visited_positions and low_pos not in self.visited_positions:
+            state = 40
+        # visited low pos
+        elif left_pos in self.visited_positions and top_pos not in self.visited_positions and low_pos in self.visited_positions:
+            state = 41 
+        # visited left pos
+        elif left_pos in self.visited_positions and top_pos not in self.visited_positions and low_pos not in self.visited_positions:
+            state = 42
+
+        # both neighbour positions vistied or not visited 
+        else:
+            state = 43
     # top
     elif neighbourhood == [0,0,-1,0]:
         #print("top")
-        state = 8
+        # visited right pos
+        if right_pos in self.visited_positions and left_pos in self.visited_positions and low_pos not in self.visited_positions:
+            state = 44
+        # visited low pos
+        elif right_pos in self.visited_positions and left_pos not in self.visited_positions and low_pos in self.visited_positions:
+            state = 45 
+        # visited left pos
+        elif right_pos in self.visited_positions and left_pos not in self.visited_positions and low_pos not in self.visited_positions:
+            state = 46
+
+        # visited right pos
+        elif low_pos in self.visited_positions and left_pos in self.visited_positions and right_pos not in self.visited_positions:
+            state = 47
+        # visited low pos
+        elif low_pos in self.visited_positions and left_pos not in self.visited_positions and right_pos in self.visited_positions:
+            state = 48 
+        # visited left pos
+        elif low_pos in self.visited_positions and left_pos not in self.visited_positions and right_pos not in self.visited_positions:
+            state = 49
+
+        # visited right pos
+        elif left_pos in self.visited_positions and right_pos in self.visited_positions and low_pos not in self.visited_positions:
+            state = 50
+        # visited low pos
+        elif left_pos in self.visited_positions and right_pos not in self.visited_positions and low_pos in self.visited_positions:
+            state = 51 
+        # visited left pos
+        elif left_pos in self.visited_positions and right_pos not in self.visited_positions and low_pos not in self.visited_positions:
+            state = 52
+
+        # both neighbour positions vistied or not visited 
+        else:
+            state = 53
     # bottom 
     elif neighbourhood == [0,0,0,-1]:
         #print("bottom")
-        state = 9
+        if right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos not in self.visited_positions:
+            state = 54
+        # visited low pos
+        elif right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos not in self.visited_positions:
+            state = 55
+        # visited left pos
+        elif right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos not in self.visited_positions:
+            state = 56
+
+        elif top_pos in self.visited_positions and left_pos not in self.visited_positions and right_pos not in self.visited_positions:
+            state = 57
+        # visited low pos
+        elif top_pos in self.visited_positions and left_pos not in self.visited_positions and right_pos not in self.visited_positions:
+            state = 58
+        # visited left pos
+        elif top_pos in self.visited_positions and left_pos not in self.visited_positions and right_pos not in self.visited_positions:
+            state = 59
+
+        elif left_pos in self.visited_positions and right_pos not in self.visited_positions and top_pos not in self.visited_positions:
+            state = 60
+        # visited low pos
+        elif left_pos in self.visited_positions and right_pos not in self.visited_positions and top_pos not in self.visited_positions:
+            state = 61
+        # visited left pos
+        elif left_pos in self.visited_positions and right_pos not in self.visited_positions and top_pos not in self.visited_positions:
+            state = 62
+
+        # both neighbour positions vistied or not visited 
+        else:
+            state = 63
     # free
     else:
-        state = 10
+        if right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos not in self.visited_positions and low_pos not in self.visited_positions:
+            state = 64
+        elif right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos not in self.visited_positions and low_pos in self.visited_positions:
+            state = 65
+        elif right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos in self.visited_positions and low_pos not in self.visited_positions:
+            state = 66
+        elif right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos in self.visited_positions and low_pos in self.visited_positions:
+            state = 67
+        elif right_pos in self.visited_positions and left_pos in self.visited_positions and top_pos not in self.visited_positions and low_pos not in self.visited_positions:
+            state = 68
+        elif right_pos in self.visited_positions and left_pos in self.visited_positions and top_pos not in self.visited_positions and low_pos in self.visited_positions:
+            state = 69
+        elif right_pos in self.visited_positions and left_pos in self.visited_positions and top_pos in self.visited_positions and low_pos in self.visited_positions:
+            state = 70
+        elif right_pos in self.visited_positions and left_pos in self.visited_positions and top_pos in self.visited_positions and low_pos not in self.visited_positions:
+            state = 71
+
+        elif left_pos in self.visited_positions and right_pos not in self.visited_positions and top_pos not in self.visited_positions and low_pos not in self.visited_positions:
+            state = 72
+        elif left_pos in self.visited_positions and right_pos not in self.visited_positions and top_pos not in self.visited_positions and low_pos in self.visited_positions:
+            state = 73
+        elif left_pos in self.visited_positions and right_pos not in self.visited_positions and top_pos in self.visited_positions and low_pos not in self.visited_positions:
+            state = 74
+        elif left_pos in self.visited_positions and right_pos not in self.visited_positions and top_pos in self.visited_positions and low_pos in self.visited_positions:
+            state = 75
+        elif left_pos in self.visited_positions and right_pos in self.visited_positions and top_pos not in self.visited_positions and low_pos not in self.visited_positions:
+            state = 76
+        elif left_pos in self.visited_positions and right_pos in self.visited_positions and top_pos not in self.visited_positions and low_pos in self.visited_positions:
+            state = 77
+        elif left_pos in self.visited_positions and right_pos in self.visited_positions and top_pos in self.visited_positions and low_pos in self.visited_positions:
+            state = 78
+        elif left_pos in self.visited_positions and right_pos in self.visited_positions and top_pos in self.visited_positions and low_pos not in self.visited_positions:
+            state = 79
+
+        elif top_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos not in self.visited_positions and low_pos not in self.visited_positions:
+            state = 80
+        elif top_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos not in self.visited_positions and low_pos in self.visited_positions:
+            state = 81
+        elif top_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos in self.visited_positions and low_pos not in self.visited_positions:
+            state = 82
+        elif top_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos in self.visited_positions and low_pos in self.visited_positions:
+            state = 83
+        elif top_pos in self.visited_positions and right_pos in self.visited_positions and left_pos not in self.visited_positions and low_pos not in self.visited_positions:
+            state = 84
+        elif top_pos in self.visited_positions and right_pos in self.visited_positions and left_pos not in self.visited_positions and low_pos in self.visited_positions:
+            state = 85
+        elif top_pos in self.visited_positions and right_pos in self.visited_positions and left_pos in self.visited_positions and low_pos in self.visited_positions:
+            state = 86
+        elif top_pos in self.visited_positions and right_pos in self.visited_positions and left_pos in self.visited_positions and low_pos not in self.visited_positions:
+            state = 87
+
+        elif low_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos not in self.visited_positions and top_pos not in self.visited_positions:
+            state = 88
+        elif low_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos not in self.visited_positions and top_pos in self.visited_positions:
+            state = 89
+        elif low_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos in self.visited_positions and top_pos not in self.visited_positions:
+            state = 90
+        elif low_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos in self.visited_positions and top_pos in self.visited_positions:
+            state = 91
+        elif low_pos in self.visited_positions and right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos not in self.visited_positions:
+            state = 92
+        elif low_pos in self.visited_positions and right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos in self.visited_positions:
+            state = 93
+        elif low_pos in self.visited_positions and right_pos in self.visited_positions and left_pos in self.visited_positions and top_pos in self.visited_positions:
+            state = 94
+        elif low_pos in self.visited_positions and right_pos in self.visited_positions and left_pos in self.visited_positions and top_pos not in self.visited_positions:
+            state = 95
+        else:
+            state = 96
 
     return state 
