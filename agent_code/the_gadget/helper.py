@@ -32,15 +32,27 @@ def action_filter(self, game_state):
         return list(action_queue)
 
 
+# TODO
 def check_blast_radius(game_state, blast_radius):
-    active_bombs_list = game_state["bombs"]
-
-    for (x, y), countdown in active_bombs_list:
-        for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-            for i in range(1, blast_radius + 1):
-                new_x, new_y = x + i * dx, y + i * dy
-                if new_x < 0 or new_x >= len(game_state['field']) or new_y < 0 or new_y >= len(game_state['field'][0]) or game_state['field'][new_x, new_y] == -1:
-                    break
-                if game_state["self"] == (new_x, new_y):
-                    return True
+    agent_position = game_state["self"][3]
+    for (x, y), timer in game_state["bombs"]:
+        if abs(agent_position[0] - x) + abs(agent_position[1] - y) <= blast_radius:
+            return True
     return False
+
+
+def check_coin_sum(self, events):    
+    if "COIN_COLLECTED" in events:
+        self.collected_coins += 1
+    
+    if self.collected_coins == 15:
+        return True
+
+    return False
+
+
+
+
+# TODO Nicht bewegt checker
+# TODO reward fürs längere überleben
+# TODO reward näher an Coin

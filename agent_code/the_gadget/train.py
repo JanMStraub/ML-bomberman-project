@@ -9,7 +9,7 @@ import numpy as np
 from .callbacks import state_to_features, ACTIONS
 from .q_network import DQN
 from .replay_memory import ReplayMemory, Transition
-from .helper import check_blast_radius
+from .helper import check_blast_radius, check_coin_sum
 from settings import COLS, ROWS, BOMB_POWER
 
 # Hyper parameters -- DO modify
@@ -22,6 +22,7 @@ HIDDEN_SIZE = 64
 ALREADY_VISITED = "ALREADY_VISITED"
 IN_BOMB_RADIUS = "IN_BOMB_RADIUS"
 BOMB_EVADED = "BOMB_EVADED"
+ALL_COINS_COLLECTED = "ALL_COINS_COLLECTED"
 
 def setup_training(self):
     """
@@ -29,6 +30,7 @@ def setup_training(self):
     """
     self.logger.info("Setting up the training environment.")
     self.visited_tiles = []
+    self.collected_coins = 0
 
     # Initialize the policy network and the target network
     self.policy_net = DQN(MAT_SIZE, len(ACTIONS), HIDDEN_SIZE)
@@ -74,13 +76,21 @@ def check_conditions(self, new_game_state: dict, events: List[str]):
         events.append(ALREADY_VISITED)
         
     self.visited_tiles.append(new_game_state["self"][3])
+
+    if len(new_game_state["bombs"]) != 0:
+        if check_blast_radius(new_game_state, BOMB_POWER):
+            self.logger.debug("Event: IN_BOMB_RADIUS")
+            events.append(IN_BOMB_RADIUS)
+        else:
+            self.logger.debug("Event: BOMB_EVADED")
+            events.append(BOMB_EVADED)
+
+
     
-    if check_blast_radius(new_game_state, BOMB_POWER):
-        self.logger.debug("Event: IN_BOMB_RADIUS")
-        events.append(IN_BOMB_RADIUS)
-    elif len(new_game_state["bombs"]) != 0:
-        self.logger.debug("Event: BOMB_EVADED")
-        events.append(BOMB_EVADED)
+    if check_coin_sum(self, events):
+        self.logger.debug("Event: ALL_COINS_COLLECTED")
+        events.append(ALL_COINS_COLLECTED)
+    
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
     """
@@ -97,6 +107,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     """
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
     self.memory.push(state_to_features(last_game_state), last_action, None, reward_from_events(self, events))
+    
+    self.collected_coins = 0
     
     # Store the model
     with open("my-saved-model.pt", "wb") as file:
@@ -116,25 +128,26 @@ def reward_from_events(self, events: List[str]) -> int:
     
     # Define a dictionary to map events to rewards
     event_rewards = {
-        e.MOVED_LEFT: 0.1,
-        e.MOVED_RIGHT: 0.1,
-        e.MOVED_UP: 0.1,
-        e.MOVED_DOWN: 0.1,
-        e.WAITED: -0.5,
-        e.INVALID_ACTION: -0.5,
-        e.BOMB_DROPPED: -0.5,
+        e.MOVED_LEFT: -0.1,
+        e.MOVED_RIGHT: -0.1,
+        e.MOVED_UP: -0.1,
+        e.MOVED_DOWN: -0.1,
+        e.WAITED: -0.7,
+        e.INVALID_ACTION: -1,
+        e.BOMB_DROPPED: -0.1,
         e.BOMB_EXPLODED: 0.5,
-        e.CRATE_DESTROYED: 3,
-        e.COIN_FOUND: 1,
-        e.COIN_COLLECTED: 2,
-        e.KILLED_OPPONENT: 5,
-        e.KILLED_SELF: -2,
-        e.GOT_KILLED: -10,
-        e.OPPONENT_ELIMINATED: 10,
-        e.SURVIVED_ROUND: 10,
-        ALREADY_VISITED: -0.2,
-        IN_BOMB_RADIUS: -1,
-        BOMB_EVADED: 2
+        e.CRATE_DESTROYED: 0.9,
+        e.COIN_FOUND: 0.3,
+        e.COIN_COLLECTED: 0.7,
+        e.KILLED_OPPONENT: 1,
+        e.KILLED_SELF: -1,
+        e.GOT_KILLED: -1,
+        e.OPPONENT_ELIMINATED: 0.7,
+        #e.SURVIVED_ROUND: 2,
+        ALREADY_VISITED: -0.5,
+        IN_BOMB_RADIUS: -0.5,
+        BOMB_EVADED: 0.5,
+        ALL_COINS_COLLECTED: 1
     }
 
     # Calculate the total reward for the given events

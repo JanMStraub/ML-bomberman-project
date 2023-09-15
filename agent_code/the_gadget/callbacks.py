@@ -31,8 +31,6 @@ def setup(self):
     """
     self.logger.debug('Successfully entered setup code')
 
-    self.visited_tiles = []
-
     # Check if a saved model file exists, and whether to train from scratch or load it
     model_file_path = "my-saved-model.pt"
     if self.train or not os.path.isfile(model_file_path):
@@ -60,7 +58,7 @@ def act(self, game_state: dict) -> str:
     
     if self.train and random.random() > random_prob:
         self.logger.debug("Choosing action purely at random.")
-        random_action = np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.1, 0.1])
+        random_action = np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.15, 0.05])
         self.logger.debug(f"Random action: {random_action}")
         return random_action
     
