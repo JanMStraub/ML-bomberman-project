@@ -59,12 +59,14 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     if ...:
         events.append(PLACEHOLDER_EVENT)"""
 
-    
+    sarsa(self,old_game_state,self_action,new_game_state,get_reward(self,old_game_state,events))
+
     self.state_history.append(extract_state(self,old_game_state))
     self.action_history.append(self_action)
     self.event_history.append(events)
     self.visited_positions.append(old_game_state['self'][3])
 
+    
     
     #self.value_estimates = state_to_features(self.value_estimates,old_game_state, new_game_state)
     #trans = Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events))
@@ -74,7 +76,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
 def get_reward(self,game_state,events):
     game_rewards = {
-        e.COIN_COLLECTED: 2,
+        e.COIN_COLLECTED: 5,
         e.KILLED_OPPONENT: 1,
         e.BOMB_DROPPED: -1,
         e.MOVED_LEFT: 0,
@@ -82,14 +84,14 @@ def get_reward(self,game_state,events):
         e.MOVED_UP: 0,
         e.MOVED_DOWN: 0,
         e.WAITED: 0,
-        e.INVALID_ACTION: -2,
+        e.INVALID_ACTION: -10,
         e.TILE_VISITED: -1,
         e.SURVIVED_ROUND: 0,
         PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
     }
     pos = game_state['self'][3]
     if pos in self.visited_positions:
-        reward_ctr = -1
+        reward_ctr = -20
     else:
         reward_ctr = 0
 
@@ -114,7 +116,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     #self.transitions.append(Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events)))
 
     # MC-Control for update value-function and policy 
-    mc_control(self,last_game_state)
+    #mc_control(self,last_game_state)
 
     self.model = self.policy
 
@@ -146,7 +148,7 @@ def reward_from_events(self, events: List[str]) -> int:
 
 def mc_control(self,game_state):
     """
-    Monte-Carlo eControl 
+    Monte-Carlo Control 
     """
     for event in self.event_history: 
             self.reward_history.append(get_reward(self,game_state,event))
@@ -187,3 +189,37 @@ def mc_control(self,game_state):
     self.visited_positions = []
 
     return 0
+
+def sarsa(self,old_game_state,self_action,new_game_state,reward):
+    
+    epsilon = 0.1
+    alpha = 0.2
+    gamma = 0.95 
+    
+    old_state = extract_state(self,old_game_state)
+    new_state = extract_state(self,new_game_state)
+
+    
+    if self_action == 'UP':
+        action = 0 
+    elif self_action == 'RIGHT':
+        action = 1
+    elif self_action == 'DOWN':
+        action = 1
+    else:
+        action = 3
+
+    estimated_action = np.random.choice([0,1,2,3], p = self.policy[new_state,:])
+    
+    self.value_estimates[old_state,action] += alpha*(reward+gamma*self.value_estimates[new_state,estimated_action]-self.value_estimates[old_state,action])
+
+    a_star = np.argmax(self.value_estimates[old_state,:])
+
+    # greedy 
+    for i in range(4):
+        if i == a_star:
+            self.policy[old_state,i] = 1-epsilon+epsilon/4
+        else:
+            self.policy[old_state,i] = epsilon/4
+
+    return 0 
