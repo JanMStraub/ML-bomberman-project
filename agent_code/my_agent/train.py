@@ -59,7 +59,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     if ...:
         events.append(PLACEHOLDER_EVENT)"""
 
-    sarsa(self,old_game_state,self_action,new_game_state,get_reward(self,old_game_state,events))
+    #sarsa(self,old_game_state,self_action,new_game_state,get_reward(self,old_game_state,events))
 
     self.state_history.append(extract_state(self,old_game_state))
     self.action_history.append(self_action)
@@ -116,7 +116,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     #self.transitions.append(Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events)))
 
     # MC-Control for update value-function and policy 
-    #mc_control(self,last_game_state)
+    mc_control(self,last_game_state)
 
     self.model = self.policy
 
@@ -170,8 +170,10 @@ def mc_control(self,game_state):
             g = pow(gamma,t) * g + self.reward_history[t]
             #g += self.reward_history[t]
 
-            self.returns[state][action].append(g)
-            self.value_estimates[state,action] = mean(self.returns[state][action])
+
+            self.return_val[state,action]+=g
+            self.return_ctr[state,action]+=1
+            self.value_estimates[state,action] = self.return_val[state,action]/self.return_ctr[state,action]
             a_star = np.argmax(self.value_estimates[state,:])
 
             # greedy 
