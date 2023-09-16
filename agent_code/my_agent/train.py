@@ -96,9 +96,9 @@ def get_reward(self,pos,visited_positions,new_pos,target_pos,events):
     }
 
     if pos in visited_positions:
-        reward_ctr = -1
+        reward_ctr = -2
     else:
-        reward_ctr = 1
+        reward_ctr = 5
 
     if euclidean_distance(pos,target_pos) < euclidean_distance(new_pos,target_pos):
         reward_ctr -= 1
