@@ -28,16 +28,21 @@ def setup(self):
     self.event_history = []
     self.reward_history = []
     self.visited_positions = []
+    self.new_pos_history = []
 
-    self.value_estimates = np.zeros((97,4))
-    self.policy = np.zeros((97,4))
+    self.value_estimates = np.zeros((11,50,4))
+    self.policy = np.zeros((11,50,4))
 
-    for i in range(97):
-        for j in range(4):
-            self.policy[i,j] = 0.25
+    for i in range(11):
+        for j in range(50):
+            for k in range(4):
+                self.policy[i,j,k] = 0.25
 
-    self.return_val = np.zeros((97,4))
-    self.return_ctr = np.zeros((97,4))            
+    self.return_val = np.zeros((11,50,4))
+    self.return_ctr = np.zeros((11,50,4))   
+
+    self.target_coin = (0,0)     
+    self.target_coins_history = []     
                     
 
     if self.train or not os.path.isfile("my-saved-model.pt"):
@@ -64,7 +69,7 @@ def act(self, game_state: dict) -> str:
     if game_state['round']>1 and self.train:
         state = extract_state(self,game_state)
         actions = ACTIONS[0:4]
-        action = np.random.choice(actions, p = self.policy[state,:])
+        action = np.random.choice(actions, p = self.policy[state[0],state[1],:])
         return action
     # Initial policy
     elif game_state['round']==1 and self.train:
@@ -74,7 +79,7 @@ def act(self, game_state: dict) -> str:
     else:
         state = extract_state(self,game_state)
         actions = ACTIONS[0:4]
-        choosed_action = actions[np.argmax(self.policy[state,:])]
+        choosed_action = actions[np.argmax(self.policy[state[0],state[1],:])]
         return choosed_action
    
 
@@ -141,6 +146,17 @@ def extract_state(self,old_game_state):
     top = field_map[old_pos[0],old_pos[1]-1]
     down = field_map[old_pos[0],old_pos[1]+1]
 
+    left_radar = [(x,old_pos[1]) for x in range(old_pos[0],old_pos[0]-4,-1)]
+    right_radar = [(x,old_pos[1]) for x in range(old_pos[0],old_pos[0]+4,1)]
+    top_radar = [(old_pos[0],y) for y in range(old_pos[1],old_pos[1]-4,-1)]
+    down_radar = [(old_pos[0],y) for y in range(old_pos[1],old_pos[1]+4,1)]
+
+    #coin_x = np.sort([x for (x,y) in old_game_state['coins']])
+    #coin_y = np.sort([y for (x,y) in old_game_state['coins']])
+
+    #coin_x_distinct = list(dict.fromkeys(coin_x))
+    #coin_y_distinct = list(dict.fromkeys(coin_x))
+
     neighbourhood.append(left)
     neighbourhood.append(right)
     neighbourhood.append(top)
@@ -148,305 +164,466 @@ def extract_state(self,old_game_state):
 
     # right top corner
     if neighbourhood == [0,-1,-1,0]:
-        #print("right_top_corner")
+
+        # Coin radar
+        if coin_radar(self,left_radar,old_game_state['coins']):
+            state = [0,4] 
+            # save coin pos for reward 
+            # if the agent moves toward the coin +
+            # if the agent moves away the coin - 
+        # visited top pos
+
+        elif coin_radar(self,down_radar,old_game_state['coins']):
+            state = [0,5] 
+
+        # Visited position
         # visited left pos
-        if left_pos in self.visited_positions and low_pos not in self.visited_positions:
-            state = 0 
+        elif left_pos in self.visited_positions and low_pos not in self.visited_positions:
+            state = [0,0] 
         # visited low pos
         elif low_pos in self.visited_positions and left_pos not in self.visited_positions:
-            state = 1 
+            state = [0,1] 
         # both neighbour positions visited 
         elif low_pos in self.visited_positions and left_pos in self.visited_positions:
-            state = 2 
+            state = [0,2] 
         # both neighbour positions not visited 
         else:
-            state = 3
+            state = [0,3] 
+
+        
+
+        ### Safe gold position and check with old new state if the agent moved in the coin direction 
+       
+
     # right bottom corner
     elif neighbourhood == [0,-1,0,-1]:
+
+        if coin_radar(self,top_radar,old_game_state['coins']):
+            state = [1,4] 
+            # save coin pos for reward 
+            # if the agent moves toward the coin +
+            # if the agent moves away the coin - 
+        elif coin_radar(self,left_radar,old_game_state['coins']):
+            state = [1,5] 
+
+
         #print("right_bottom_corner")
         # visited left pos
-        if left_pos in self.visited_positions and top_pos not in self.visited_positions:
-            state = 4 
+        elif left_pos in self.visited_positions and top_pos not in self.visited_positions:
+            state = [1,0] 
         # visited top pos
         elif top_pos in self.visited_positions and left_pos not in self.visited_positions:
-            state = 5 
+            state = [1,1] 
         # both neighbour positions visited 
         elif top_pos in self.visited_positions and left_pos in self.visited_positions:
-            state = 6 
+            state = [1,2]  
         # both neighbour positions not visited 
         else:
-            state = 7
+            state = [1,3] 
+
+        # Coin radar
+        
     # left top corner
     elif neighbourhood == [-1,0,-1,0]:
+        
+        # Coin radar
+        if coin_radar(self,right_radar,old_game_state['coins']):
+            state = [2,4] 
+            # save coin pos for reward 
+            # if the agent moves toward the coin +
+            # if the agent moves away the coin - 
+        elif coin_radar(self,down_radar,old_game_state['coins']):
+            state = [2,5] 
+
         #print("left_top_corner")
         # visited right pos
-        if right_pos in self.visited_positions and low_pos not in self.visited_positions:
-            state = 8 
+        elif right_pos in self.visited_positions and low_pos not in self.visited_positions:
+            state = [2,0] 
         # visited low pos
         elif low_pos in self.visited_positions and right_pos not in self.visited_positions:
-            state = 9 
+            state = [2,1]  
         # both neighbour positions visited 
         elif low_pos in self.visited_positions and right_pos in self.visited_positions:
-            state = 10 
+            state = [2,2]  
         # both neighbour positions not visited 
         else:
-            state = 11
+            state = [2,3] 
+
+        
+
     # left bottom corner
     elif neighbourhood == [-1,0,0,-1]:
+
+        # Coin radar
+        if coin_radar(self,top_radar,old_game_state['coins']):
+            state = [3,4] 
+            # save coin pos for reward 
+            # if the agent moves toward the coin +
+            # if the agent moves away the coin - 
+        elif coin_radar(self,right_radar,old_game_state['coins']):
+            state = [3,5] 
+
         #print("left_bottom_corner")
         # visited right pos
-        if right_pos in self.visited_positions and top_pos not in self.visited_positions:
-            state = 12
+        elif right_pos in self.visited_positions and top_pos not in self.visited_positions:
+            state = [3,0] 
         # visited top pos
         elif top_pos in self.visited_positions and right_pos not in self.visited_positions:
-            state = 13 
+            state = [3,1] 
         # both neighbour positions visited 
         elif top_pos in self.visited_positions and right_pos in self.visited_positions:
-            state = 14 
+            state = [3,2]  
         # both neighbour positions not visited 
         else:
-            state = 15
+            state = [3,3] 
+
+        
+
     # top down
     elif neighbourhood == [0,0,-1,-1]:
+
+        # Coin radar
+        if coin_radar(self,left_radar,old_game_state['coins']):
+            state = [4,4] 
+            # save coin pos for reward 
+            # if the agent moves toward the coin +
+            # if the agent moves away the coin - 
+        elif coin_radar(self,right_radar,old_game_state['coins']):
+            state = [4,5] 
+
         #print("top_bottom")
         # visited right pos
-        if right_pos in self.visited_positions and left_pos not in self.visited_positions:
-            state = 16
+        elif right_pos in self.visited_positions and left_pos not in self.visited_positions:
+            state = [4,0] 
         # visited left pos
         elif left_pos in self.visited_positions and right_pos not in self.visited_positions:
-            state = 17 
+            state = [4,1]
         # both neighbour positions vistiid 
         elif left_pos in self.visited_positions and right_pos in self.visited_positions:
-            state = 18 
+            state = [4,2] 
         # both neighbour positions not visited 
         else:
-            state = 19
+            state = [4,3]
+
+
     # left right
     elif neighbourhood == [-1,-1,0,0]:
+
+        # Coin radar
+        if coin_radar(self,top_radar,old_game_state['coins']):
+            state = [5,4] 
+            # save coin pos for reward 
+            # if the agent moves toward the coin +
+            # if the agent moves away the coin - 
+        elif coin_radar(self,down_radar,old_game_state['coins']):
+            state = [5,5] 
+
         #print("left_right")
         # visited top pos
-        if top_pos in self.visited_positions and low_pos not in self.visited_positions:
-            state = 20
+        elif top_pos in self.visited_positions and low_pos not in self.visited_positions:
+            state = [5,0]
         # visited low pos
         elif low_pos in self.visited_positions and top_pos not in self.visited_positions:
-            state = 21 
+            state = [5,1] 
         # both neighbour positions visited 
         elif low_pos in self.visited_positions and top_pos in self.visited_positions:
-            state = 22 
+            state = [5,2] 
         # both neighbour positions visited or not visited 
         else:
-            state = 23
+            state = [5,3]
+
     # left
     elif neighbourhood == [-1,0,0,0]:
+
+        # Coin radar
+        if coin_radar(self,top_radar,old_game_state['coins']):
+            state = [6,10] 
+            # save coin pos for reward 
+            # if the agent moves toward the coin +
+            # if the agent moves away the coin - 
+        elif coin_radar(self,right_radar,old_game_state['coins']):
+            state = [6,11] 
+        elif coin_radar(self,down_radar,old_game_state['coins']):
+            state = [6,12] 
+
         #print("left")
         # visited top pos and right pos 
-        if top_pos in self.visited_positions and right_pos in self.visited_positions and low_pos not in self.visited_positions:
-            state = 24
+        elif top_pos in self.visited_positions and right_pos in self.visited_positions and low_pos not in self.visited_positions:
+            state = [6,0]
         # visited top pos and left pos 
         elif top_pos in self.visited_positions and right_pos not in self.visited_positions and low_pos in self.visited_positions:
-            state = 25 
+            state = [6,1] 
         # visited only top pos
         elif top_pos in self.visited_positions and right_pos not in self.visited_positions and low_pos not in self.visited_positions:
-            state = 26
+            state = [6,2]
 
         # visited low pos and right pos 
         elif low_pos in self.visited_positions and right_pos in self.visited_positions and top_pos not in self.visited_positions:            
-            state = 27
+            state = [6,3]
         # visited low pos and top pos 
         elif low_pos in self.visited_positions and right_pos not in self.visited_positions and top_pos in self.visited_positions:
-            state = 28 
+            state = [6,4] 
         # visited only low pos
         elif low_pos in self.visited_positions and right_pos not in self.visited_positions and top_pos not in self.visited_positions:            
-            state = 29
+            state = [6,5]
 
         # visited right pos and top pos
         elif right_pos in self.visited_positions and top_pos in self.visited_positions and low_pos not in self.visited_positions:
-            state = 30
+            state = [6,6]
         # visited right pos and low pos
         elif right_pos in self.visited_positions and top_pos not in self.visited_positions and low_pos in self.visited_positions:
-            state = 31 
+            state = [6,7] 
         # visited only right pos
         elif right_pos in self.visited_positions and top_pos not in self.visited_positions and low_pos not in self.visited_positions:
-            state = 32
+            state = [6,8]
 
         # all neighbour positions vistied or not visited 
         else:
-            state = 33
+            state = [6,9]
+
+
     # right
     elif neighbourhood == [0,-1,0,0]:
+
+        # Coin radar
+        if coin_radar(self,top_radar,old_game_state['coins']):
+            state = [7,10] 
+            # save coin pos for reward 
+            # if the agent moves toward the coin +
+            # if the agent moves away the coin - 
+        elif coin_radar(self,left_radar,old_game_state['coins']):
+            state = [7,11] 
+        elif coin_radar(self,down_radar,old_game_state['coins']):
+            state = [7,12] 
+
         #print("right")
         # visited top pos
-        if top_pos in self.visited_positions and left_pos in self.visited_positions and low_pos not in self.visited_positions:
-            state = 34
+        elif top_pos in self.visited_positions and left_pos in self.visited_positions and low_pos not in self.visited_positions:
+            state = [7,0]
         # visited low pos
         elif top_pos in self.visited_positions and left_pos not in self.visited_positions and low_pos in self.visited_positions:
-            state = 35 
+            state = [7,1] 
         # visited left pos
         elif top_pos in self.visited_positions and left_pos not in self.visited_positions and low_pos not in self.visited_positions:
-            state = 36
+            state = [7,2]
 
         # visited low pos
         elif low_pos in self.visited_positions and left_pos in self.visited_positions and top_pos not in self.visited_positions:
-            state = 37
+            state = [7,3]
         # visited low pos
         elif low_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos in self.visited_positions:
-            state = 38 
+            state = [7,4]
         # visited left pos
         elif low_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos not in self.visited_positions:
-            state = 39
+            state = [7,5]
 
         # visited left pos
         elif left_pos in self.visited_positions and top_pos in self.visited_positions and low_pos not in self.visited_positions:
-            state = 40
+            state = [7,6]
         # visited low pos
         elif left_pos in self.visited_positions and top_pos not in self.visited_positions and low_pos in self.visited_positions:
-            state = 41 
+            state = [7,7]
         # visited left pos
         elif left_pos in self.visited_positions and top_pos not in self.visited_positions and low_pos not in self.visited_positions:
-            state = 42
+            state = [7,8]
 
         # both neighbour positions vistied or not visited 
         else:
-            state = 43
+            state = [7,9]
+
+
     # top
     elif neighbourhood == [0,0,-1,0]:
+
+        # Coin radar
+        if coin_radar(self,right_radar,old_game_state['coins']):
+            state = [8,10] 
+            # save coin pos for reward 
+            # if the agent moves toward the coin +
+            # if the agent moves away the coin - 
+        elif coin_radar(self,left_radar,old_game_state['coins']):
+            state = [8,11] 
+        elif coin_radar(self,down_radar,old_game_state['coins']):
+            state = [8,12] 
+
         #print("top")
         # visited right pos
-        if right_pos in self.visited_positions and left_pos in self.visited_positions and low_pos not in self.visited_positions:
-            state = 44
+        elif right_pos in self.visited_positions and left_pos in self.visited_positions and low_pos not in self.visited_positions:
+            state = [8,0]
         # visited low pos
         elif right_pos in self.visited_positions and left_pos not in self.visited_positions and low_pos in self.visited_positions:
-            state = 45 
+            state = [8,1] 
         # visited left pos
         elif right_pos in self.visited_positions and left_pos not in self.visited_positions and low_pos not in self.visited_positions:
-            state = 46
+            state = [8,2]
 
         # visited right pos
         elif low_pos in self.visited_positions and left_pos in self.visited_positions and right_pos not in self.visited_positions:
-            state = 47
+            state = [8,3]
         # visited low pos
         elif low_pos in self.visited_positions and left_pos not in self.visited_positions and right_pos in self.visited_positions:
-            state = 48 
+            state = [8,4] 
         # visited left pos
         elif low_pos in self.visited_positions and left_pos not in self.visited_positions and right_pos not in self.visited_positions:
-            state = 49
+            state = [8,5]
 
         # visited right pos
         elif left_pos in self.visited_positions and right_pos in self.visited_positions and low_pos not in self.visited_positions:
-            state = 50
+            state = [8,6]
         # visited low pos
         elif left_pos in self.visited_positions and right_pos not in self.visited_positions and low_pos in self.visited_positions:
-            state = 51 
+            state = [8,7]
         # visited left pos
         elif left_pos in self.visited_positions and right_pos not in self.visited_positions and low_pos not in self.visited_positions:
-            state = 52
+            state = [8,8]
 
         # both neighbour positions vistied or not visited 
         else:
-            state = 53
+            state = [8,9]
+
+        
+
     # bottom 
     elif neighbourhood == [0,0,0,-1]:
+
+        # Coin radar
+        if coin_radar(self,right_radar,old_game_state['coins']):
+            state = [9,10] 
+            # save coin pos for reward 
+            # if the agent moves toward the coin +
+            # if the agent moves away the coin - 
+        elif coin_radar(self,left_radar,old_game_state['coins']):
+            state = [9,11] 
+        elif coin_radar(self,top_radar,old_game_state['coins']):
+            state = [9,12] 
+
         #print("bottom")
-        if right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos not in self.visited_positions:
-            state = 54
+        elif right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos not in self.visited_positions:
+            state = [9,0]
         # visited low pos
         elif right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos not in self.visited_positions:
-            state = 55
+            state = [9,1]
         # visited left pos
         elif right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos not in self.visited_positions:
-            state = 56
+            state = [9,2]
 
         elif top_pos in self.visited_positions and left_pos not in self.visited_positions and right_pos not in self.visited_positions:
-            state = 57
+            state = [9,3]
         # visited low pos
         elif top_pos in self.visited_positions and left_pos not in self.visited_positions and right_pos not in self.visited_positions:
-            state = 58
+            state = [9,4]
         # visited left pos
         elif top_pos in self.visited_positions and left_pos not in self.visited_positions and right_pos not in self.visited_positions:
-            state = 59
+            state = [9,5]
 
         elif left_pos in self.visited_positions and right_pos not in self.visited_positions and top_pos not in self.visited_positions:
-            state = 60
+            state = [9,6]
         # visited low pos
         elif left_pos in self.visited_positions and right_pos not in self.visited_positions and top_pos not in self.visited_positions:
-            state = 61
+            state = [9,7]
         # visited left pos
         elif left_pos in self.visited_positions and right_pos not in self.visited_positions and top_pos not in self.visited_positions:
-            state = 62
+            state = [9,8]
 
         # both neighbour positions vistied or not visited 
         else:
-            state = 63
+            state = [9,9]
+
+
+
     # free
     else:
-        if right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos not in self.visited_positions and low_pos not in self.visited_positions:
-            state = 64
+        
+        # Coin radar
+        if coin_radar(self,right_radar,old_game_state['coins']):
+            state = [10,33] 
+            # save coin pos for reward 
+            # if the agent moves toward the coin +
+            # if the agent moves away the coin - 
+        elif coin_radar(self,left_radar,old_game_state['coins']):
+            state = [10,34] 
+        elif coin_radar(self,top_radar,old_game_state['coins']):
+            state = [10,35] 
+        elif coin_radar(self,down_radar,old_game_state['coins']):
+            state = [10,36] 
+
+        elif right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos not in self.visited_positions and low_pos not in self.visited_positions:
+            state = [10,0]
         elif right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos not in self.visited_positions and low_pos in self.visited_positions:
-            state = 65
+            state = [10,1]
         elif right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos in self.visited_positions and low_pos not in self.visited_positions:
-            state = 66
+            state = [10,2]
         elif right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos in self.visited_positions and low_pos in self.visited_positions:
-            state = 67
+            state = [10,3]
         elif right_pos in self.visited_positions and left_pos in self.visited_positions and top_pos not in self.visited_positions and low_pos not in self.visited_positions:
-            state = 68
+            state = [10,4]
         elif right_pos in self.visited_positions and left_pos in self.visited_positions and top_pos not in self.visited_positions and low_pos in self.visited_positions:
-            state = 69
+            state = [10,5]
         elif right_pos in self.visited_positions and left_pos in self.visited_positions and top_pos in self.visited_positions and low_pos in self.visited_positions:
-            state = 70
+            state = [10,6]
         elif right_pos in self.visited_positions and left_pos in self.visited_positions and top_pos in self.visited_positions and low_pos not in self.visited_positions:
-            state = 71
+            state = [10,7]
 
         elif left_pos in self.visited_positions and right_pos not in self.visited_positions and top_pos not in self.visited_positions and low_pos not in self.visited_positions:
-            state = 72
+            state = [10,8]
         elif left_pos in self.visited_positions and right_pos not in self.visited_positions and top_pos not in self.visited_positions and low_pos in self.visited_positions:
-            state = 73
+            state = [10,9]
         elif left_pos in self.visited_positions and right_pos not in self.visited_positions and top_pos in self.visited_positions and low_pos not in self.visited_positions:
-            state = 74
+            state = [10,10]
         elif left_pos in self.visited_positions and right_pos not in self.visited_positions and top_pos in self.visited_positions and low_pos in self.visited_positions:
-            state = 75
+            state = [10,11]
         elif left_pos in self.visited_positions and right_pos in self.visited_positions and top_pos not in self.visited_positions and low_pos not in self.visited_positions:
-            state = 76
+            state = [10,12]
         elif left_pos in self.visited_positions and right_pos in self.visited_positions and top_pos not in self.visited_positions and low_pos in self.visited_positions:
-            state = 77
+            state = [10,13]
         elif left_pos in self.visited_positions and right_pos in self.visited_positions and top_pos in self.visited_positions and low_pos in self.visited_positions:
-            state = 78
+            state = [10,14]
         elif left_pos in self.visited_positions and right_pos in self.visited_positions and top_pos in self.visited_positions and low_pos not in self.visited_positions:
-            state = 79
+            state = [10,15]
 
         elif top_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos not in self.visited_positions and low_pos not in self.visited_positions:
-            state = 80
+            state = [10,16]
         elif top_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos not in self.visited_positions and low_pos in self.visited_positions:
-            state = 81
+            state = [10,17]
         elif top_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos in self.visited_positions and low_pos not in self.visited_positions:
-            state = 82
+            state = [10,18]
         elif top_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos in self.visited_positions and low_pos in self.visited_positions:
-            state = 83
+            state = [10,19]
         elif top_pos in self.visited_positions and right_pos in self.visited_positions and left_pos not in self.visited_positions and low_pos not in self.visited_positions:
-            state = 84
+            state = [10,20]
         elif top_pos in self.visited_positions and right_pos in self.visited_positions and left_pos not in self.visited_positions and low_pos in self.visited_positions:
-            state = 85
+            state = [10,21]
         elif top_pos in self.visited_positions and right_pos in self.visited_positions and left_pos in self.visited_positions and low_pos in self.visited_positions:
-            state = 86
+            state = [10,22]
         elif top_pos in self.visited_positions and right_pos in self.visited_positions and left_pos in self.visited_positions and low_pos not in self.visited_positions:
-            state = 87
+            state = [10,23]
 
         elif low_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos not in self.visited_positions and top_pos not in self.visited_positions:
-            state = 88
+            state = [10,24]
         elif low_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos not in self.visited_positions and top_pos in self.visited_positions:
-            state = 89
+            state = [10,25]
         elif low_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos in self.visited_positions and top_pos not in self.visited_positions:
-            state = 90
+            state = [10,26]
         elif low_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos in self.visited_positions and top_pos in self.visited_positions:
-            state = 91
+            state = [10,27]
         elif low_pos in self.visited_positions and right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos not in self.visited_positions:
-            state = 92
+            state = [10,28]
         elif low_pos in self.visited_positions and right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos in self.visited_positions:
-            state = 93
+            state = [10,29]
         elif low_pos in self.visited_positions and right_pos in self.visited_positions and left_pos in self.visited_positions and top_pos in self.visited_positions:
-            state = 94
+            state = [10,30]
         elif low_pos in self.visited_positions and right_pos in self.visited_positions and left_pos in self.visited_positions and top_pos not in self.visited_positions:
-            state = 95
+            state = [10,31]
         else:
-            state = 96
+            state = [10,32]
+
+        
 
     return state 
+
+def coin_radar(self,radar,coin):
+    for location in radar:
+        if location in coin:
+            self.target_coin = location
+            return True
+    return False

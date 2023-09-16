@@ -10,6 +10,8 @@ import numpy as np
 
 from statistics import mean
 
+import math
+
 # This is only an example!
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
@@ -65,6 +67,8 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     self.action_history.append(self_action)
     self.event_history.append(events)
     self.visited_positions.append(old_game_state['self'][3])
+    self.new_pos_history.append(new_game_state['self'][3])
+    self.target_coins_history.append(self.target_coin)
 
     
     
@@ -74,7 +78,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     # state_to_features is defined in callbacks.py
     #self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
 
-def get_reward(self,game_state,events):
+def get_reward(self,pos,visited_positions,new_pos,target_pos,events):
     game_rewards = {
         e.COIN_COLLECTED: 5,
         e.KILLED_OPPONENT: 1,
@@ -84,16 +88,22 @@ def get_reward(self,game_state,events):
         e.MOVED_UP: 0,
         e.MOVED_DOWN: 0,
         e.WAITED: 0,
-        e.INVALID_ACTION: -10,
+        e.INVALID_ACTION: -2,
         e.TILE_VISITED: -1,
         e.SURVIVED_ROUND: 0,
+        e.MOVED_TOWARDS_COIN: 5,
         PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
     }
-    pos = game_state['self'][3]
-    if pos in self.visited_positions:
-        reward_ctr = -20
+
+    if pos in visited_positions:
+        reward_ctr = -1
     else:
-        reward_ctr = 0
+        reward_ctr = 1
+
+    if euclidean_distance(pos,target_pos) < euclidean_distance(new_pos,target_pos):
+        reward_ctr -= 1
+    else:
+        reward_ctr += 1
 
     for event in events:
         reward_ctr += game_rewards[event]
@@ -150,8 +160,10 @@ def mc_control(self,game_state):
     """
     Monte-Carlo Control 
     """
+    i = 0 
     for event in self.event_history: 
-            self.reward_history.append(get_reward(self,game_state,event))
+            self.reward_history.append(get_reward(self,self.visited_positions[i],self.visited_positions[:i],self.new_pos_history[i],self.target_coins_history[i],event))
+            i+=1
 
     epsilon = 0.2
     g = 0 
@@ -171,17 +183,17 @@ def mc_control(self,game_state):
             #g += self.reward_history[t]
 
 
-            self.return_val[state,action]+=g
-            self.return_ctr[state,action]+=1
-            self.value_estimates[state,action] = self.return_val[state,action]/self.return_ctr[state,action]
-            a_star = np.argmax(self.value_estimates[state,:])
+            self.return_val[state[0],state[1],action]+=g
+            self.return_ctr[state[0],state[1],action]+=1
+            self.value_estimates[state[0],state[1],action] = self.return_val[state[0],state[1],action]/self.return_ctr[state[0],state[1],action]
+            a_star = np.argmax(self.value_estimates[state[0],state[1],:])
 
             # greedy 
             for i in range(4):
                 if i == a_star:
-                    self.policy[state,i] = 1-epsilon+epsilon/4
+                    self.policy[state[0],state[1],i] = 1-epsilon+epsilon/4
                 else:
-                    self.policy[state,i] = epsilon/4
+                    self.policy[state[0],state[1],i] = epsilon/4
             t+=1
     
     self.state_history = []
@@ -189,6 +201,8 @@ def mc_control(self,game_state):
     self.event_history = []
     self.reward_history = []
     self.visited_positions = []
+    self.new_pos_history = []
+    self.target_coin_history = []
 
     return 0
 
@@ -225,3 +239,12 @@ def sarsa(self,old_game_state,self_action,new_game_state,reward):
             self.policy[old_state,i] = epsilon/4
 
     return 0 
+
+
+
+
+def euclidean_distance(coord1, coord2):
+    x1, y1 = coord1
+    x2, y2 = coord2
+    distance = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+    return distance
