@@ -70,8 +70,6 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     self.new_pos_history.append(new_game_state['self'][3])
     self.target_coins_history.append(self.target_coin)
     self.bomb_history.append(self.bomb)
-
-    
     
     #self.value_estimates = state_to_features(self.value_estimates,old_game_state, new_game_state)
     #trans = Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events))
@@ -83,17 +81,20 @@ def get_reward(self,pos,visited_positions,new_pos,target_pos,bomb,events):
     game_rewards = {
         e.COIN_COLLECTED: 5,
         e.KILLED_OPPONENT: 1,
-        e.BOMB_DROPPED: 1,
+        e.BOMB_DROPPED: 0,
+        e.BOMB_EXPLODED: 0,
         e.MOVED_LEFT: 0,
         e.MOVED_RIGHT: 0,
         e.MOVED_UP: 0,
         e.MOVED_DOWN: 0,
-        e.WAITED: 0,
-        e.INVALID_ACTION: -2,
+        e.WAITED: -5,
+        e.INVALID_ACTION: -5,
         e.TILE_VISITED: -1,
-        e.SURVIVED_ROUND: 0,
+        e.SURVIVED_ROUND: 20,
         e.MOVED_TOWARDS_COIN: 5,
         e.KILLED_SELF: -10,
+        e.CRATE_DESTROYED: 5,
+        e.COIN_FOUND: 2,
         PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
     }
 
@@ -107,10 +108,16 @@ def get_reward(self,pos,visited_positions,new_pos,target_pos,bomb,events):
     else:
         reward_ctr += 1
 
-    if euclidean_distance(pos,bomb) > euclidean_distance(new_pos,bomb):
+    new_pos_euclidean = euclidean_distance(new_pos,bomb)
+
+    if euclidean_distance(pos,bomb) > new_pos_euclidean:
         reward_ctr -= 1
-    else:
+    elif new_pos_euclidean > 1 and new_pos_euclidean <= 2:
         reward_ctr += 1
+    elif new_pos_euclidean > 2 and new_pos_euclidean <= 3:
+        reward_ctr += 2
+    else:
+        reward_ctr += 3
 
     for event in events:
         reward_ctr += game_rewards[event]
@@ -169,7 +176,7 @@ def mc_control(self,game_state):
     """
     i = 0 
     for event in self.event_history: 
-            self.reward_history.append(get_reward(self,self.visited_positions[i],self.visited_positions[:i],self.new_pos_history[i],self.target_coins_history[i],event))
+            self.reward_history.append(get_reward(self,self.visited_positions[i],self.visited_positions[:i],self.new_pos_history[i],self.target_coins_history[i],self.bomb_history[i],event))
             i+=1
 
     epsilon = 0.2
@@ -177,15 +184,19 @@ def mc_control(self,game_state):
     t = 0
     gamma = 0.95 
     for state in self.state_history:
-        #while t < len(self.state_history)-1:
+        #while t < len(self.state_history)-1: ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
             if self.action_history[t] == 'UP':
                 action = 0
             elif self.action_history[t] == 'RIGHT':
                 action = 1 
             elif self.action_history[t] == 'DOWN':
                 action = 2
-            else:
+            elif self.action_history[t] == 'LEFT':
                 action = 3
+            elif self.action_history[t] == 'WAIT':
+                action = 4
+            else:
+                action = 5
             g = pow(gamma,t) * g + self.reward_history[t]
             #g += self.reward_history[t]
 
@@ -196,11 +207,11 @@ def mc_control(self,game_state):
             a_star = np.argmax(self.value_estimates[state[0],state[1],:])
 
             # greedy 
-            for i in range(4):
+            for i in range(6):
                 if i == a_star:
-                    self.policy[state[0],state[1],i] = 1-epsilon+epsilon/4
+                    self.policy[state[0],state[1],i] = 1-epsilon+epsilon/6
                 else:
-                    self.policy[state[0],state[1],i] = epsilon/4
+                    self.policy[state[0],state[1],i] = epsilon/6
             t+=1
     
     self.state_history = []
@@ -229,22 +240,26 @@ def sarsa(self,old_game_state,self_action,new_game_state,reward):
     elif self_action == 'RIGHT':
         action = 1
     elif self_action == 'DOWN':
-        action = 1
-    else:
+        action = 2
+    elif self_action == 'LEFT':
         action = 3
+    elif self_action == 'WAIT':
+        action = 4
+    else:
+        action = 5
 
-    estimated_action = np.random.choice([0,1,2,3], p = self.policy[new_state,:])
+    estimated_action = np.random.choice([0,1,2,3,4,5], p = self.policy[new_state,:])
     
     self.value_estimates[old_state,action] += alpha*(reward+gamma*self.value_estimates[new_state,estimated_action]-self.value_estimates[old_state,action])
 
     a_star = np.argmax(self.value_estimates[old_state,:])
 
     # greedy 
-    for i in range(4):
+    for i in range(6):
         if i == a_star:
-            self.policy[old_state,i] = 1-epsilon+epsilon/4
+            self.policy[old_state,i] = 1-epsilon+epsilon/6
         else:
-            self.policy[old_state,i] = epsilon/4
+            self.policy[old_state,i] = epsilon/6
 
     return 0 
 

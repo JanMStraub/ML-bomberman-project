@@ -30,16 +30,16 @@ def setup(self):
     self.visited_positions = []
     self.new_pos_history = []
 
-    self.value_estimates = np.zeros((11,50,4))
-    self.policy = np.zeros((11,50,4))
+    self.value_estimates = np.zeros((11,50,6))
+    self.policy = np.zeros((11,50,6))
 
     for i in range(11):
         for j in range(50):
-            for k in range(4):
-                self.policy[i,j,k] = 0.25
+            for k in range(5):
+                self.policy[i,j,k] = 0.2
 
-    self.return_val = np.zeros((11,50,4))
-    self.return_ctr = np.zeros((11,50,4))   
+    self.return_val = np.zeros((11,50,6))
+    self.return_ctr = np.zeros((11,50,6))   
 
     self.target_coin = (0,0)     
     self.target_coins_history = []   
@@ -71,17 +71,17 @@ def act(self, game_state: dict) -> str:
     """
     if game_state['round']>1 and self.train:
         state = extract_state(self,game_state)
-        actions = ACTIONS[0:4]
+        actions = ACTIONS[0:6]
         action = np.random.choice(actions, p = self.policy[state[0],state[1],:])
         return action
     # Initial policy
     elif game_state['round']==1 and self.train:
         # First level actions 
-        actions = ACTIONS[0:4]
-        return np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
+        actions = ACTIONS[0:6]
+        return np.random.choice(actions, p = [0.2,0.2,0.2,0.2,0.2,0.0])
     else:
         state = extract_state(self,game_state)
-        actions = ACTIONS[0:4]
+        actions = ACTIONS[0:6]
         choosed_action = actions[np.argmax(self.policy[state[0],state[1],:])]
         return choosed_action
    
@@ -154,6 +154,8 @@ def extract_state(self,old_game_state):
     top_radar = [(old_pos[0],y) for y in range(old_pos[1],old_pos[1]-4,-1)]
     down_radar = [(old_pos[0],y) for y in range(old_pos[1],old_pos[1]+4,1)]
 
+    bombs = ([x for (x,y) in old_game_state['bombs']])
+
     #coin_x = np.sort([x for (x,y) in old_game_state['coins']])
     #coin_y = np.sort([y for (x,y) in old_game_state['coins']])
 
@@ -169,13 +171,13 @@ def extract_state(self,old_game_state):
     if neighbourhood == [0,-1,-1,0]:
 
         # Bomb radar
-        if bomb_radar(self,left_radar,old_game_state['bombs']):
+        if bomb_radar(self,left_radar,bombs):
             state = [0,6] 
             # save coin pos for reward 
             # if the agent moves toward the coin +
             # if the agent moves away the coin - 
         # visited top pos
-        elif bomb_radar(self,down_radar,old_game_state['bombs']):
+        elif bomb_radar(self,down_radar,bombs):
             state = [0,7] 
 
         # Crate 
@@ -215,12 +217,12 @@ def extract_state(self,old_game_state):
     elif neighbourhood == [0,-1,0,-1]:
 
         # Bomb radar
-        if bomb_radar(self,top_radar,old_game_state['bombs']):
+        if bomb_radar(self,top_radar,bombs):
             state = [1,6] 
             # save coin pos for reward 
             # if the agent moves toward the coin +
             # if the agent moves away the coin - 
-        elif bomb_radar(self,left_radar,old_game_state['bombs']):
+        elif bomb_radar(self,left_radar,bombs):
             state = [1,7] 
 
         # Crate 
@@ -257,12 +259,12 @@ def extract_state(self,old_game_state):
     elif neighbourhood == [-1,0,-1,0]:
 
         # Bomb radar
-        if bomb_radar(self,right_radar,old_game_state['bombs']):
+        if bomb_radar(self,right_radar,bombs):
             state = [2,6] 
             # save coin pos for reward 
             # if the agent moves toward the coin +
             # if the agent moves away the coin - 
-        elif bomb_radar(self,down_radar,old_game_state['bombs']):
+        elif bomb_radar(self,down_radar,bombs):
             state = [2,7] 
 
         # Crate 
@@ -298,12 +300,12 @@ def extract_state(self,old_game_state):
     elif neighbourhood == [-1,0,0,-1]:
 
         # Bomb radar
-        if bomb_radar(self,top_radar,old_game_state['bombs']):
+        if bomb_radar(self,top_radar,bombs):
             state = [3,6] 
             # save coin pos for reward 
             # if the agent moves toward the coin +
             # if the agent moves away the coin - 
-        elif bomb_radar(self,right_radar,old_game_state['bombs']):
+        elif bomb_radar(self,right_radar,bombs):
             state = [3,7] 
 
         # Crate 
@@ -339,12 +341,12 @@ def extract_state(self,old_game_state):
     elif neighbourhood == [0,0,-1,-1]:
 
         # Bomb radar
-        if bomb_radar(self,left_radar,old_game_state['bombs']):
+        if bomb_radar(self,left_radar,bombs):
             state = [4,6] 
             # save coin pos for reward 
             # if the agent moves toward the coin +
             # if the agent moves away the coin - 
-        elif bomb_radar(self,right_radar,old_game_state['bombs']):
+        elif bomb_radar(self,right_radar,bombs):
             state = [4,7] 
 
         # Crate 
@@ -379,12 +381,12 @@ def extract_state(self,old_game_state):
     elif neighbourhood == [-1,-1,0,0]:
 
         # Bomb radar
-        if bomb_radar(self,top_radar,old_game_state['bombs']):
+        if bomb_radar(self,top_radar,bombs):
             state = [5,6] 
             # save coin pos for reward 
             # if the agent moves toward the coin +
             # if the agent moves away the coin - 
-        elif bomb_radar(self,down_radar,old_game_state['bombs']):
+        elif bomb_radar(self,down_radar,bombs):
             state = [5,7] 
 
         # Crate 
@@ -418,14 +420,14 @@ def extract_state(self,old_game_state):
     elif neighbourhood == [-1,0,0,0]:
 
         # Bomb radar
-        if bomb_radar(self,top_radar,old_game_state['bombs']):
+        if bomb_radar(self,top_radar,bombs):
             state = [6,13] 
             # save coin pos for reward 
             # if the agent moves toward the coin +
             # if the agent moves away the coin - 
-        elif bomb_radar(self,right_radar,old_game_state['bombs']):
+        elif bomb_radar(self,right_radar,bombs):
             state = [6,14] 
-        elif bomb_radar(self,down_radar,old_game_state['bombs']):
+        elif bomb_radar(self,down_radar,bombs):
             state = [6,15] 
 
         # Crate 
@@ -483,14 +485,14 @@ def extract_state(self,old_game_state):
     elif neighbourhood == [0,-1,0,0]:
 
         # Bomb radar
-        if bomb_radar(self,top_radar,old_game_state['bombs']):
+        if bomb_radar(self,top_radar,bombs):
             state = [7,13] 
             # save coin pos for reward 
             # if the agent moves toward the coin +
             # if the agent moves away the coin - 
-        elif bomb_radar(self,left_radar,old_game_state['bombs']):
+        elif bomb_radar(self,left_radar,bombs):
             state = [7,14] 
-        elif bomb_radar(self,down_radar,old_game_state['bombs']):
+        elif bomb_radar(self,down_radar,bombs):
             state = [7,15] 
 
         # Crate 
@@ -548,14 +550,14 @@ def extract_state(self,old_game_state):
     elif neighbourhood == [0,0,-1,0]:
 
         # Bomb radar
-        if bomb_radar(self,right_radar,old_game_state['bombs']):
+        if bomb_radar(self,right_radar,bombs):
             state = [8,13] 
             # save coin pos for reward 
             # if the agent moves toward the coin +
             # if the agent moves away the coin - 
-        elif bomb_radar(self,left_radar,old_game_state['bombs']):
+        elif bomb_radar(self,left_radar,bombs):
             state = [8,14] 
-        elif bomb_radar(self,down_radar,old_game_state['bombs']):
+        elif bomb_radar(self,down_radar,bombs):
             state = [8,15] 
 
         # Crate 
@@ -614,14 +616,14 @@ def extract_state(self,old_game_state):
     elif neighbourhood == [0,0,0,-1]:
 
         # Bomb radar
-        if bomb_radar(self,right_radar,old_game_state['bombs']):
+        if bomb_radar(self,right_radar,bombs):
             state = [9,13] 
             # save coin pos for reward 
             # if the agent moves toward the coin +
             # if the agent moves away the coin - 
-        elif bomb_radar(self,left_radar,old_game_state['bombs']):
+        elif bomb_radar(self,left_radar,bombs):
             state = [9,14] 
-        elif bomb_radar(self,top_radar,old_game_state['bombs']):
+        elif bomb_radar(self,top_radar,bombs):
             state = [9,15] 
 
         # Crate 
@@ -671,21 +673,19 @@ def extract_state(self,old_game_state):
         else:
             state = [9,9]
 
-
-
     # free
     else:
         # Bomb radar
-        if bomb_radar(self,right_radar,old_game_state['bombs']):
+        if bomb_radar(self,right_radar,bombs):
             state = [10,37] 
             # save coin pos for reward 
             # if the agent moves toward the coin +
             # if the agent moves away the coin - 
-        elif bomb_radar(self,left_radar,old_game_state['bombs']):
+        elif bomb_radar(self,left_radar,bombs):
             state = [10,38] 
-        elif bomb_radar(self,top_radar,old_game_state['bombs']):
+        elif bomb_radar(self,top_radar,bombs):
             state = [10,39] 
-        elif bomb_radar(self,down_radar,old_game_state['bombs']):
+        elif bomb_radar(self,down_radar,bombs):
             state = [10,40] 
 
         # Crate 
@@ -784,9 +784,9 @@ def coin_radar(self,radar,coin):
             return True
     return False
 
-def bomb_radar(self,radar,bomb):
+def bomb_radar(self,radar,bombs):
     for location in radar:
-        if location in bomb:
+        if location in bombs:
             self.bomb = location
             return True
     return False
