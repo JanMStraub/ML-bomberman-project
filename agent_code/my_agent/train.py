@@ -69,6 +69,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     self.visited_positions.append(old_game_state['self'][3])
     self.new_pos_history.append(new_game_state['self'][3])
     self.target_coins_history.append(self.target_coin)
+    self.bomb_history.append(self.bomb)
 
     
     
@@ -78,11 +79,11 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     # state_to_features is defined in callbacks.py
     #self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
 
-def get_reward(self,pos,visited_positions,new_pos,target_pos,events):
+def get_reward(self,pos,visited_positions,new_pos,target_pos,bomb,events):
     game_rewards = {
         e.COIN_COLLECTED: 5,
         e.KILLED_OPPONENT: 1,
-        e.BOMB_DROPPED: -1,
+        e.BOMB_DROPPED: 1,
         e.MOVED_LEFT: 0,
         e.MOVED_RIGHT: 0,
         e.MOVED_UP: 0,
@@ -92,6 +93,7 @@ def get_reward(self,pos,visited_positions,new_pos,target_pos,events):
         e.TILE_VISITED: -1,
         e.SURVIVED_ROUND: 0,
         e.MOVED_TOWARDS_COIN: 5,
+        e.KILLED_SELF: -10,
         PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
     }
 
@@ -101,6 +103,11 @@ def get_reward(self,pos,visited_positions,new_pos,target_pos,events):
         reward_ctr = 5
 
     if euclidean_distance(pos,target_pos) < euclidean_distance(new_pos,target_pos):
+        reward_ctr -= 1
+    else:
+        reward_ctr += 1
+
+    if euclidean_distance(pos,bomb) > euclidean_distance(new_pos,bomb):
         reward_ctr -= 1
     else:
         reward_ctr += 1
@@ -203,6 +210,7 @@ def mc_control(self,game_state):
     self.visited_positions = []
     self.new_pos_history = []
     self.target_coin_history = []
+    self.bomb_history = []  
 
     return 0
 
