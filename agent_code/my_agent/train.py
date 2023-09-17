@@ -86,7 +86,7 @@ def get_reward(self,pos,visited_positions,bomb_detect_pos,new_pos,target_pos,bom
     game_rewards = {
         e.COIN_COLLECTED: 1,
         e.KILLED_OPPONENT: 1,
-        e.BOMB_DROPPED: 0,
+        e.BOMB_DROPPED: 1,
         e.BOMB_EXPLODED: 0,
         e.MOVED_LEFT: 2,
         e.MOVED_RIGHT: 2,
@@ -95,7 +95,7 @@ def get_reward(self,pos,visited_positions,bomb_detect_pos,new_pos,target_pos,bom
         e.WAITED: 0,
         e.INVALID_ACTION: -2,
         e.TILE_VISITED: -1,
-        e.SURVIVED_ROUND: 0,
+        e.SURVIVED_ROUND: 2,
         e.MOVED_TOWARDS_COIN: 2,
         e.KILLED_SELF: -2,
         e.CRATE_DESTROYED: 2,
@@ -113,19 +113,19 @@ def get_reward(self,pos,visited_positions,bomb_detect_pos,new_pos,target_pos,bom
     else:
         reward_ctr += 1
 
-    """if bomb:    
+    if bomb:    
         new_pos_euclidean = euclidean_distance(new_pos,bomb)
 
         if euclidean_distance(bomb_detect_pos,bomb) >= new_pos_euclidean:
-            reward_ctr -= 5
+            reward_ctr -= 2
         elif avoid_check_(bomb_detect_pos, new_pos, bomb):
-            reward_ctr += 10 
+            reward_ctr += 5 
         elif new_pos_euclidean > 1 and new_pos_euclidean <= 2:
-            reward_ctr += 5
+            reward_ctr += 3
         elif new_pos_euclidean > 2 and new_pos_euclidean <= 3:
-            reward_ctr += 7
+            reward_ctr += 4
         else:
-            reward_ctr += 10"""
+            reward_ctr += 5
 
     for event in events:
         reward_ctr += game_rewards[event]
@@ -188,11 +188,11 @@ def mc_control(self,game_state):
                                                   ,self.new_pos_history[i],self.target_coins_history[i],self.bomb_history[i],event))
             i+=1
 
-    if game_state['round'] < 500:
+    if game_state['round'] < 2500:
         epsilon = 0.5
-    elif game_state['round'] >= 500 and game_state['round'] < 1000:
+    elif game_state['round'] >= 2500 and game_state['round'] < 5000:
         epsilon = 0.4
-    elif game_state['round'] >= 1000 and game_state['round'] < 2000:
+    elif game_state['round'] >= 7500 and game_state['round'] < 10000:
         epsilon = 0.3
     else:
         epsilon = 0.2
@@ -213,25 +213,28 @@ def mc_control(self,game_state):
                 action = 4
             else:
                 action = 5
-            #g = pow(gamma,t) * g + self.reward_history[t]
-            #g += self.reward_history[t]
-            g = get_state_return(disc,t,self.reward_history[t:])
+
+            if (state,action) not in self.first_visit_check:
+                self.first_visit_check.append((state,action))
+                #g = pow(gamma,t) * g + self.reward_history[t]
+                #g += self.reward_history[t]
+                g = get_state_return(disc,t,self.reward_history[t:])
 
 
-            self.return_val[state[0],state[1],action]+=g
-            self.return_ctr[state[0],state[1],action]+=1
-            self.value_estimates[state[0],state[1],action] = self.return_val[state[0],state[1],action]/self.return_ctr[state[0],state[1],action]
-            a_star = np.argmax(self.value_estimates[state[0],state[1],:])
+                self.return_val[state[0],state[1],action]+=g
+                self.return_ctr[state[0],state[1],action]+=1
+                self.value_estimates[state[0],state[1],action] = self.return_val[state[0],state[1],action]/self.return_ctr[state[0],state[1],action]
+                a_star = np.argmax(self.value_estimates[state[0],state[1],:])
 
-            # greedy 
-            #num_actions = 6
-            num_actions = 4
-            #for i in range(num_actions ):
-            for i in range(num_actions):
-                if i == a_star:
-                    self.policy[state[0],state[1],i] = 1-epsilon+epsilon/num_actions 
-                else:
-                    self.policy[state[0],state[1],i] = epsilon/num_actions 
+                # greedy 
+                num_actions = 6
+                #num_actions = 4
+                #for i in range(num_actions ):
+                for i in range(num_actions):
+                    if i == a_star:
+                        self.policy[state[0],state[1],i] = 1-epsilon+epsilon/num_actions 
+                    else:
+                        self.policy[state[0],state[1],i] = epsilon/num_actions 
             t+=1
     
     self.state_history = []
@@ -243,6 +246,7 @@ def mc_control(self,game_state):
     self.target_coin_history = []
     self.bomb_history = []  
     self.bomb_detect_pos_history = []
+    self.first_visit_check = []
 
 
     return 0
