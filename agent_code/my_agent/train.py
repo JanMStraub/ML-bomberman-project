@@ -84,7 +84,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
 def get_reward(self,pos,visited_positions,bomb_detect_pos,new_pos,target_pos,bomb,events):
     game_rewards = {
-        e.COIN_COLLECTED: 1,
+        e.COIN_COLLECTED: 2,
         e.KILLED_OPPONENT: 1,
         e.BOMB_DROPPED: 1,
         e.BOMB_EXPLODED: 0,
@@ -93,12 +93,12 @@ def get_reward(self,pos,visited_positions,bomb_detect_pos,new_pos,target_pos,bom
         e.MOVED_UP: 2,
         e.MOVED_DOWN: 2,
         e.WAITED: 0,
-        e.INVALID_ACTION: -2,
+        e.INVALID_ACTION: -3,
         e.TILE_VISITED: -1,
-        e.SURVIVED_ROUND: 2,
+        e.SURVIVED_ROUND: 5,
         e.MOVED_TOWARDS_COIN: 2,
         e.KILLED_SELF: -2,
-        e.CRATE_DESTROYED: 2,
+        e.CRATE_DESTROYED: 3,
         e.COIN_FOUND: 2,
         PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
     }
@@ -188,11 +188,11 @@ def mc_control(self,game_state):
                                                   ,self.new_pos_history[i],self.target_coins_history[i],self.bomb_history[i],event))
             i+=1
 
-    if game_state['round'] < 2500:
+    if game_state['round'] < 10000:
         epsilon = 0.5
-    elif game_state['round'] >= 2500 and game_state['round'] < 5000:
+    elif game_state['round'] >= 10000 and game_state['round'] < 15000:
         epsilon = 0.4
-    elif game_state['round'] >= 7500 and game_state['round'] < 10000:
+    elif game_state['round'] >= 15000 and game_state['round'] < 30000:
         epsilon = 0.3
     else:
         epsilon = 0.2
