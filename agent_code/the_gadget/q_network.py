@@ -19,8 +19,8 @@ class DQN(nn.Module):
         )
 
         self.loss = nn.MSELoss()
-        self.optimizer = optim.SGD(self.parameters(), lr = 0.001)
-        self.scheduler = lr_scheduler.StepLR(self.optimizer, step_size = 10000, gamma = 0.95)
+        self.optimizer = optim.SGD(self.parameters(), lr = 0.0003)
+        self.scheduler = lr_scheduler.StepLR(self.optimizer, step_size = 10000, gamma = 0.9)
 
     def forward(self, x):
         # Reshape the input and pass it through the model_sequence

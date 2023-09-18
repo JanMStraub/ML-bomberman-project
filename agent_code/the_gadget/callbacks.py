@@ -6,11 +6,12 @@ import math
 import numpy as np
 import torch
 
-from .helper import action_filter
+from .helper import action_filter, calculate_blast_radius
+from settings import BOMB_POWER
 
-EPS_START = 0.9
+EPS_START = 0.90
 EPS_END = 0.05
-EPS_DECAY = 350
+EPS_DECAY = 200
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 
@@ -30,7 +31,7 @@ def setup(self):
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
     self.logger.debug('Successfully entered setup code')
-
+    self.visited_tiles =[]
     # Check if a saved model file exists, and whether to train from scratch or load it
     model_file_path = "my-saved-model.pt"
     if self.train or not os.path.isfile(model_file_path):
@@ -44,6 +45,30 @@ def setup(self):
             self.logger.warning(f"Saved model file '{model_file_path}' not found. Setting up model from scratch.")
 
 
+def act_random(self, game_state):
+    step = game_state["step"]
+    self.step_count += 1
+    print(self.step_count)
+    self.logger.debug("Choosing action purely at random.")
+    random_action = np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.1, 0.1])
+    self.logger.debug(f"Random action: {random_action}")
+    print(f"Random action: {random_action} in {step}")
+    return random_action
+
+
+def act_learned(self, game_state):
+    step = game_state["step"]
+    self.logger.debug("Querying model for action.")
+    game_state_tensor = torch.from_numpy(state_to_features(game_state)).float()
+    action = ACTIONS[self.policy_net(game_state_tensor).argmax().item()]
+    valid_action = choose_action(self, self.policy_net(game_state_tensor), game_state)
+
+    print(f"Action: {valid_action} in {step}")
+    self.logger.debug(f"Action: {valid_action}")
+    
+    return valid_action
+
+
 def act(self, game_state: dict) -> str:
     """
     Your agent should parse the input, think, and take a decision.
@@ -54,21 +79,14 @@ def act(self, game_state: dict) -> str:
     :return: The action to take as a string.
     """
 
-    random_prob = EPS_END + (EPS_START - EPS_END) * math.exp(-1.0 * game_state["step"] / EPS_DECAY)
-    
-    if self.train and random.random() > random_prob:
-        self.logger.debug("Choosing action purely at random.")
-        random_action = np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.15, 0.05])
-        self.logger.debug(f"Random action: {random_action}")
-        return random_action
-    
-    self.logger.debug("Querying model for action.")
-    game_state_tensor = torch.from_numpy(state_to_features(game_state)).float()
-    action = ACTIONS[self.policy_net(game_state_tensor).argmax().item()]
-    #valid_action = choose_action(self, self.policy_net(game_state_tensor), game_state)
-    self.logger.debug(f"Action: {action}")
-
-    return action
+    if self.train:
+        random_prob = EPS_END + (EPS_START - EPS_END) * math.exp(-1.0 * self.step_count / EPS_DECAY)
+        if random.random() > random_prob:
+            return act_random(self, game_state)
+        else:
+            return act_learned(self, game_state)
+    else:
+        return act_learned(self, game_state)
 
 
 def state_to_features(game_state: dict) -> np.array:
@@ -89,41 +107,44 @@ def state_to_features(game_state: dict) -> np.array:
     # Define mappings for cell types
     cell_mappings = {
         -1: 0,   # Wall
-        0: 1,    # Free tile
         1: 2,    # Crate
     }
 
     # Create an array of ones with the same shape as the game field
-    hybrid_matrix = np.ones_like(game_state["field"], dtype=np.int)
+    feature_matrix = np.ones_like(game_state["field"], dtype=np.int)
 
     # Map cell types to their corresponding values
     for cell_type, value in cell_mappings.items():
-        hybrid_matrix[game_state["field"] == cell_type] = value
+        feature_matrix[game_state["field"] == cell_type] = value
 
     # Set Agent position
     agent_position = game_state["self"][3]
-    hybrid_matrix[agent_position[0], agent_position[1]] = 3
+    feature_matrix[agent_position[0], agent_position[1]] = 3
 
     if game_state["coins"]:
         # Set Coin positions
         coin_positions = np.array(game_state["coins"])
-        hybrid_matrix[coin_positions[:, 0], coin_positions[:, 1]] = 4
+        feature_matrix[coin_positions[:, 0], coin_positions[:, 1]] = 4
 
     if game_state["bombs"]:
         # Set bomb positions
-        bomb_positions = np.array([bomb[0] for bomb in game_state["bombs"]])
-        hybrid_matrix[bomb_positions[:, 0], bomb_positions[:, 1]] = 5
+        bomb_positions = np.array([bomb for bomb in calculate_blast_radius(game_state, BOMB_POWER)])
+        feature_matrix[bomb_positions[:, 0], bomb_positions[:, 1]] = 5
 
-    return hybrid_matrix.reshape(-1)
+    return feature_matrix.reshape(-1)
 
 
 def choose_action(self, actions, game_state) -> dict:
     action_scores = actions.detach().numpy()
     sorted_actions = np.argsort(-action_scores)
+    
+    print(action_scores)
+    print(sorted_actions)
 
     # Choose the best valid action from the sorted list
     for action_idx in sorted_actions:
         action = ACTIONS[action_idx]
+        print(action)
         if action in action_filter(self, game_state):
             return action
 

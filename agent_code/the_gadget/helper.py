@@ -1,7 +1,9 @@
 import random
 
+from math import dist
 from collections import deque
 
+# UNUSED
 def action_filter(self, game_state):
     # Get the current position of your agent
     x, y = game_state['self'][3]
@@ -32,27 +34,102 @@ def action_filter(self, game_state):
         return list(action_queue)
 
 
-# TODO
-def check_blast_radius(game_state, blast_radius):
+def check_danger_zone(game_state, blast_radius):
     agent_position = game_state["self"][3]
+
     for (x, y), timer in game_state["bombs"]:
-        if abs(agent_position[0] - x) + abs(agent_position[1] - y) <= blast_radius:
+        if agent_position == (x, y):
             return True
-    return False
+        
+        for i in range(1, blast_radius + 1):
+            if game_state["field"][x + i, y] == -1:
+                break
+            if (x + i, y) == agent_position:
+                return True
+
+        for i in range(1, blast_radius + 1):
+            if game_state["field"][x - i, y] == -1:
+                break
+            if (x - i, y) == agent_position:
+                return True
+
+        for i in range(1, blast_radius + 1):
+            if game_state["field"][x, y + i] == -1:
+                break
+            if (x, y + i) == agent_position:
+                return True
+
+        for i in range(1, blast_radius + 1):
+            if game_state["field"][x, y - i] == -1:
+                break
+            if (x, y - i) == agent_position:
+                return True
 
 
-def check_coin_sum(self, events):    
-    if "COIN_COLLECTED" in events:
-        self.collected_coins += 1
+def calculate_blast_radius(game_state, blast_radius):
+    danger_zone = []
     
-    if self.collected_coins == 15:
+    for (x, y), timer in game_state["bombs"]:
+        danger_zone.append((x, y))
+        for i in range(1, blast_radius + 1):
+            if x + i < game_state["field"].shape[0]:
+                if game_state["field"][x + i, y] != -1:
+                    danger_zone.append((x + i, y))
+            if x - i >= 0:
+                if game_state["field"][x - i, y] != -1:
+                    danger_zone.append((x - i, y))
+            if y + i < game_state["field"].shape[1]:
+                if game_state["field"][x, y + i] != -1:
+                    danger_zone.append((x, y + i))
+            if y - i >= 0:
+                if game_state["field"][x, y - i] != -1:
+                    danger_zone.append((x, y - i))
+
+    return danger_zone
+
+# coin list filtern
+# nur in eine Achse und nur vier Schritte
+def check_coin_distance(old_game_state, new_game_state):
+    old_agent_position = old_game_state["self"][3]
+    new_agent_position = new_game_state["self"][3]
+    
+    for coin_position_new in new_game_state["coins"]:
+        for coin_position_old in old_game_state["coins"]:
+            if coin_position_new == coin_position_old:
+                old_dist = dist(old_agent_position, coin_position_new)
+                new_dist = dist(new_agent_position, coin_position_new)
+                
+                if new_dist < old_dist:
+                    return True
+                else:
+                    return False
+
+
+def check_movement(self, old_game_state, new_game_state):
+    old_agent_position = old_game_state["self"][3]
+    new_agent_position = new_game_state["self"][3]
+    
+    if old_agent_position == new_agent_position:
+        self.same_position += 1
+        if self.same_position == 5:
+            return True
+    else:
+       self.same_position = 0
+
+
+def check_actions(self, action):
+    action_count = 0
+    
+    self.action_queue.put(action)
+    
+    while not self.action_queue.empty():
+        act = self.action_queue.get()
+        
+        if act == action:
+            action_count += 1
+    
+    if action_count > 10:
         return True
+    
 
-    return False
-
-
-
-
-# TODO Nicht bewegt checker
-# TODO reward fürs längere überleben
-# TODO reward näher an Coin
+# ne coins collected

@@ -1,4 +1,5 @@
 import pickle
+import queue
 import torch
 import torch.nn.functional as F
 from torch import optim
@@ -9,7 +10,7 @@ import numpy as np
 from .callbacks import state_to_features, ACTIONS
 from .q_network import DQN
 from .replay_memory import ReplayMemory, Transition
-from .helper import check_blast_radius, check_coin_sum
+from .helper import check_danger_zone, check_coin_distance, check_movement, check_actions
 from settings import COLS, ROWS, BOMB_POWER
 
 # Hyper parameters -- DO modify
@@ -22,7 +23,11 @@ HIDDEN_SIZE = 64
 ALREADY_VISITED = "ALREADY_VISITED"
 IN_BOMB_RADIUS = "IN_BOMB_RADIUS"
 BOMB_EVADED = "BOMB_EVADED"
-ALL_COINS_COLLECTED = "ALL_COINS_COLLECTED"
+CLOSER_TO_COIN = "CLOSER_TO_COIN"
+FARTHER_FROM_COIN = "FARTHER_FROM_COIN"
+NOT_MOVING = "NOT_MOVING"
+ACTION_PENALTY = "ACTION_PENALTY"
+
 
 def setup_training(self):
     """
@@ -30,7 +35,9 @@ def setup_training(self):
     """
     self.logger.info("Setting up the training environment.")
     self.visited_tiles = []
-    self.collected_coins = 0
+    self.same_position = 0
+    self.action_queue = queue.Queue(maxsize=10)
+    self.step_count = 0
 
     # Initialize the policy network and the target network
     self.policy_net = DQN(MAT_SIZE, len(ACTIONS), HIDDEN_SIZE)
@@ -61,13 +68,13 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     """
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
-    check_conditions(self, new_game_state, events)
+    check_conditions(self, old_game_state, new_game_state, events, self_action)
     
     self.memory.push(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events))
     optimize_model(self, self_action)
     
 
-def check_conditions(self, new_game_state: dict, events: List[str]):
+def check_conditions(self, old_game_state: dict, new_game_state: dict, events: List[str], self_action: str):
     """
     Check specific conditions and append corresponding events.
     """
@@ -78,18 +85,27 @@ def check_conditions(self, new_game_state: dict, events: List[str]):
     self.visited_tiles.append(new_game_state["self"][3])
 
     if len(new_game_state["bombs"]) != 0:
-        if check_blast_radius(new_game_state, BOMB_POWER):
+        if check_danger_zone(new_game_state, BOMB_POWER):
             self.logger.debug("Event: IN_BOMB_RADIUS")
             events.append(IN_BOMB_RADIUS)
         else:
             self.logger.debug("Event: BOMB_EVADED")
             events.append(BOMB_EVADED)
-
-
     
-    if check_coin_sum(self, events):
-        self.logger.debug("Event: ALL_COINS_COLLECTED")
-        events.append(ALL_COINS_COLLECTED)
+    if check_coin_distance(old_game_state, new_game_state):
+        self.logger.debug("Event: CLOSER_TO_COIN")
+        events.append(CLOSER_TO_COIN)
+    else:
+        self.logger.debug("Event: FARTHER_FROM_COIN")
+        events.append(FARTHER_FROM_COIN)
+    
+    if check_movement(self, old_game_state, new_game_state):
+        self.logger.debug("Event: NOT_MOVING")
+        events.append(NOT_MOVING)
+    
+    if check_actions(self, self_action):
+        self.logger.debug("Event: ACTION_PENALTY")
+        events.append(ACTION_PENALTY)
     
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -107,8 +123,6 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     """
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
     self.memory.push(state_to_features(last_game_state), last_action, None, reward_from_events(self, events))
-    
-    self.collected_coins = 0
     
     # Store the model
     with open("my-saved-model.pt", "wb") as file:
@@ -128,32 +142,35 @@ def reward_from_events(self, events: List[str]) -> int:
     
     # Define a dictionary to map events to rewards
     event_rewards = {
-        e.MOVED_LEFT: -0.1,
-        e.MOVED_RIGHT: -0.1,
-        e.MOVED_UP: -0.1,
-        e.MOVED_DOWN: -0.1,
-        e.WAITED: -0.7,
+        e.MOVED_LEFT: 0.1,
+        e.MOVED_RIGHT: 0.1,
+        e.MOVED_UP: 0.1,
+        e.MOVED_DOWN: 0.1,
+        e.WAITED: -0.5,
         e.INVALID_ACTION: -1,
-        e.BOMB_DROPPED: -0.1,
-        e.BOMB_EXPLODED: 0.5,
-        e.CRATE_DESTROYED: 0.9,
-        e.COIN_FOUND: 0.3,
-        e.COIN_COLLECTED: 0.7,
-        e.KILLED_OPPONENT: 1,
+        e.BOMB_DROPPED: -0.4,
+        #e.BOMB_EXPLODED: 0.5,
+        e.CRATE_DESTROYED: 0.2,
+        #e.COIN_FOUND: 0.5,
+        e.COIN_COLLECTED: 0.5,
+        #e.KILLED_OPPONENT: 1,
         e.KILLED_SELF: -1,
-        e.GOT_KILLED: -1,
-        e.OPPONENT_ELIMINATED: 0.7,
-        #e.SURVIVED_ROUND: 2,
+        #e.GOT_KILLED: -1,
+        #e.OPPONENT_ELIMINATED: 0.7,
+        #e.SURVIVED_ROUND: 1,
         ALREADY_VISITED: -0.5,
-        IN_BOMB_RADIUS: -0.5,
-        BOMB_EVADED: 0.5,
-        ALL_COINS_COLLECTED: 1
+        #IN_BOMB_RADIUS: -0.5,
+        #BOMB_EVADED: 0.5,
+        CLOSER_TO_COIN: 0.3,
+        #FARTHER_FROM_COIN: -0.5,
+        #NOT_MOVING: -1,
+        #ACTION_PENALTY: -1,
     }
 
     # Calculate the total reward for the given events
     total_reward = sum(event_rewards.get(event, 0) for event in events)
     self.logger.info(f"Awarded {total_reward} for events {', '.join(events)}")
-    total_reward -= 0.1
+    total_reward -= 0.01
 
     return total_reward
 
