@@ -188,11 +188,11 @@ def mc_control(self,game_state):
                                                   ,self.new_pos_history[i],self.target_coins_history[i],self.bomb_history[i],event))
             i+=1
 
-    if game_state['round'] < 2500:
+    if game_state['round'] < 250:
         epsilon = 0.5
-    elif game_state['round'] >= 2500 and game_state['round'] < 5000:
+    elif game_state['round'] >= 250 and game_state['round'] < 500:
         epsilon = 0.4
-    elif game_state['round'] >= 5000 and game_state['round'] < 15000:
+    elif game_state['round'] >= 500 and game_state['round'] < 1500:
         epsilon = 0.3
     else:
         epsilon = 0.2
@@ -231,8 +231,8 @@ def mc_control(self,game_state):
                 a_star = np.argmax(self.value_estimates[state[0],state[1],:])
 
                 # greedy 
-                num_actions = 6
-                um_actions = 4
+                #num_actions = 6
+                num_actions = 4
                 for i in range(num_actions):
                     if i == a_star:
                         self.policy[state[0],state[1],i] = 1-epsilon+epsilon/num_actions 

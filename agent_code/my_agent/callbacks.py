@@ -30,19 +30,19 @@ def setup(self):
     self.visited_positions = []
     self.new_pos_history = []
 
-    self.value_estimates = np.zeros((11,50,6))
-    #self.value_estimates = np.zeros((11,50,4))
-    self.policy = np.zeros((11,50,6))
-    #self.policy = np.zeros((11,50,4))
+    #self.value_estimates = np.zeros((11,50,6))
+    self.value_estimates = np.zeros((11,50,4))
+    #self.policy = np.zeros((11,50,6))
+    self.policy = np.zeros((11,50,4))
     self.first_visit_check = []
 
     for i in range(11):
         for j in range(50):
-            self.policy[i,j] = [0.15,0.15,0.15,0.15,0.2,0.2] 
-            #for k in range(4):
+            #self.policy[i,j] = [0.15,0.15,0.15,0.15,0.2,0.2] 
+            for k in range(4):
             #for k in range(5):
                 #self.policy[i,j,k] = 0.2
-                #self.policy[i,j,k] = 0.25
+                self.policy[i,j,k] = 0.25
 
     self.return_val = np.zeros((11,50,6))
     self.return_ctr = np.zeros((11,50,6))   
@@ -83,21 +83,21 @@ def act(self, game_state: dict) -> str:
     """
     if game_state['round']>1 and self.train:
         state = extract_state(self,game_state)
-        #actions = ACTIONS[0:4]
-        actions = ACTIONS[0:6]
+        actions = ACTIONS[0:4]
+        #actions = ACTIONS[0:6]
         action = np.random.choice(actions, p = self.policy[state[0],state[1],:])
         return action
     # Initial policy
     elif game_state['round']==1 and self.train:
         # First level actions 
-        #actions = ACTIONS[0:4]
-        actions = ACTIONS[0:6]
-        #return np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
+        actions = ACTIONS[0:4]
+        #actions = ACTIONS[0:6]
+        return np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
         return np.random.choice(actions, p = [0.15,0.15,0.15,0.15,0.2,0.2])
     else:
         state = extract_state(self,game_state)
-        #actions = ACTIONS[0:4]
-        actions = ACTIONS[0:6]
+        actions = ACTIONS[0:4]
+        #actions = ACTIONS[0:6]
         choosed_action = actions[np.argmax(self.policy[state[0],state[1],:])]
         return choosed_action
    
@@ -307,7 +307,7 @@ def extract_state(self,old_game_state):
         elif low_pos in self.visited_positions and right_pos not in self.visited_positions:
             state = [2,1]  
         # both neighbour positions visited 
-        # Expect: LEFT OR DOWN
+        # Expect: RIGHT OR DOWN
         elif low_pos in self.visited_positions and right_pos in self.visited_positions:
             state = [2,2]  
         # both neighbour positions not visited 
@@ -536,7 +536,7 @@ def extract_state(self,old_game_state):
 
         # Coin radar
         # Expect: UP
-        if coin_radar(self,top_radar,old_game_state['coins']):
+        elif coin_radar(self,top_radar,old_game_state['coins']):
             state = [7,10] 
         # Expect: LEFT
         elif coin_radar(self,left_radar,old_game_state['coins']):
@@ -612,7 +612,7 @@ def extract_state(self,old_game_state):
 
         # Coin radar
         # Expect: RIGHT
-        if coin_radar(self,right_radar,old_game_state['coins']):
+        elif coin_radar(self,right_radar,old_game_state['coins']):
             state = [8,10] 
         # Expect: LEFT
         elif coin_radar(self,left_radar,old_game_state['coins']):
@@ -686,7 +686,7 @@ def extract_state(self,old_game_state):
 
         # Coin radar
         # Expect: RIGHT
-        if coin_radar(self,right_radar,old_game_state['coins']):
+        elif coin_radar(self,right_radar,old_game_state['coins']):
             state = [9,10] 
         # Expect: LEFT
         elif coin_radar(self,left_radar,old_game_state['coins']):
@@ -759,7 +759,7 @@ def extract_state(self,old_game_state):
         
         # Coin radar
         # Expect: RIGHT
-        if coin_radar(self,right_radar,old_game_state['coins']):
+        elif coin_radar(self,right_radar,old_game_state['coins']):
             state = [10,33] 
         # Expect: LEFT
         elif coin_radar(self,left_radar,old_game_state['coins']):
@@ -771,105 +771,18 @@ def extract_state(self,old_game_state):
         elif coin_radar(self,down_radar,old_game_state['coins']):
             state = [10,36] 
 
-        # Expect: LEFT OR UP OR DOWN
-        elif right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos not in self.visited_positions and low_pos not in self.visited_positions:
+        # Expect: Right 
+        elif right_pos not in self.visited_positions:
             state = [10,0]
-        # Expect: LEFT OR UP 
-        elif right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos not in self.visited_positions and low_pos in self.visited_positions:
+        # Expect: LEFT 
+        elif left_pos not in self.visited_positions:
             state = [10,1]
-        # Expect: LEFT OR DOWN
-        elif right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos in self.visited_positions and low_pos not in self.visited_positions:
-            state = [10,2]
-        # Expect: LEFT 
-        elif right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos in self.visited_positions and low_pos in self.visited_positions:
-            state = [10,3]
-        # Expect: UP OR DOWN
-        elif right_pos in self.visited_positions and left_pos in self.visited_positions and top_pos not in self.visited_positions and low_pos not in self.visited_positions:
-            state = [10,4]
-        # Expect: UP 
-        elif right_pos in self.visited_positions and left_pos in self.visited_positions and top_pos not in self.visited_positions and low_pos in self.visited_positions:
-            state = [10,5]
-        # Expect: DOWN
-        elif right_pos in self.visited_positions and left_pos in self.visited_positions and top_pos in self.visited_positions and low_pos not in self.visited_positions:
-            state = [10,6]
-        # Expect: LEFT OR UP OR DOWN OR RIGHT
-        elif right_pos in self.visited_positions and left_pos in self.visited_positions and top_pos in self.visited_positions and low_pos in self.visited_positions:
-            state = [10,7]
-
-        # Expect: RIGHT OR UP OR DOWN
-        elif left_pos in self.visited_positions and right_pos not in self.visited_positions and top_pos not in self.visited_positions and low_pos not in self.visited_positions:
-            state = [10,8]
-        # Expect: RIGHT OR UP 
-        elif left_pos in self.visited_positions and right_pos not in self.visited_positions and top_pos not in self.visited_positions and low_pos in self.visited_positions:
-            state = [10,9]
-        # Expect: RIGHT OR DOWN
-        elif left_pos in self.visited_positions and right_pos not in self.visited_positions and top_pos in self.visited_positions and low_pos not in self.visited_positions:
-            state = [10,10]
-        # Expect: RIGHT 
-        elif left_pos in self.visited_positions and right_pos not in self.visited_positions and top_pos in self.visited_positions and low_pos in self.visited_positions:
-            state = [10,11]
-        # Expect: UP OR DOWN
-        elif left_pos in self.visited_positions and right_pos in self.visited_positions and top_pos not in self.visited_positions and low_pos not in self.visited_positions:
-            state = [10,12]
         # Expect: UP
-        elif left_pos in self.visited_positions and right_pos in self.visited_positions and top_pos not in self.visited_positions and low_pos in self.visited_positions:
-            state = [10,13]
+        elif top_pos not in self.visited_positions:
+            state = [10,2]
         # Expect: DOWN
-        elif left_pos in self.visited_positions and right_pos in self.visited_positions and top_pos in self.visited_positions and low_pos not in self.visited_positions:
-            state = [10,14]
-        # Expect: RIGHT OR LEFT OR UP OR DOWN
-        elif left_pos in self.visited_positions and right_pos in self.visited_positions and top_pos in self.visited_positions and low_pos in self.visited_positions:
-            state = [10,15]
-
-        # Expect: RIGHT OR LEFT OR DOWN
-        elif top_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos not in self.visited_positions and low_pos not in self.visited_positions:
-            state = [10,16]
-        # Expect: RIGHT OR LEFT 
-        elif top_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos not in self.visited_positions and low_pos in self.visited_positions:
-            state = [10,17]
-        # Expect: RIGHT OR DOWN
-        elif top_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos in self.visited_positions and low_pos not in self.visited_positions:
-            state = [10,18]
-        # Expect: RIGHT
-        elif top_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos in self.visited_positions and low_pos in self.visited_positions:
-            state = [10,19]
-        # Expect: LEFT OR DOWN
-        elif top_pos in self.visited_positions and right_pos in self.visited_positions and left_pos not in self.visited_positions and low_pos not in self.visited_positions:
-            state = [10,20]
-        # Expect: LEFT 
-        elif top_pos in self.visited_positions and right_pos in self.visited_positions and left_pos not in self.visited_positions and low_pos in self.visited_positions:
-            state = [10,21]
-        # Expect: DOWN
-        elif top_pos in self.visited_positions and right_pos in self.visited_positions and left_pos in self.visited_positions and low_pos not in self.visited_positions:
-            state = [10,22]
-        # Expect: RIGHT OR UP OR DOWN OR LEFT 
-        elif top_pos in self.visited_positions and right_pos in self.visited_positions and left_pos in self.visited_positions and low_pos in self.visited_positions:
-            state = [10,23]
-
-        # Expect: RIGHT OR LEFT OR UP 
-        elif low_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos not in self.visited_positions and top_pos not in self.visited_positions:
-            state = [10,24]
-        # Expect: RIGHT OR LEFT 
-        elif low_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos not in self.visited_positions and top_pos in self.visited_positions:
-            state = [10,25]
-        # Expect: RIGHT OR UP
-        elif low_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos in self.visited_positions and top_pos not in self.visited_positions:
-            state = [10,26]
-        # Expect: RIGHT 
-        elif low_pos in self.visited_positions and right_pos not in self.visited_positions and left_pos in self.visited_positions and top_pos in self.visited_positions:
-            state = [10,27]
-        # Expect: LEFT OR UP 
-        elif low_pos in self.visited_positions and right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos not in self.visited_positions:
-            state = [10,28]
-        # Expect: LEFT 
-        elif low_pos in self.visited_positions and right_pos in self.visited_positions and left_pos not in self.visited_positions and top_pos in self.visited_positions:
-            state = [10,29]
-        # Expect: UP 
-        elif low_pos in self.visited_positions and right_pos in self.visited_positions and left_pos in self.visited_positions and top_pos not in self.visited_positions:
-            state = [10,30]
-        # Expect: RIGHT OR UP OR DOWN OR LEFT 
-        elif low_pos in self.visited_positions and right_pos in self.visited_positions and left_pos in self.visited_positions and top_pos in self.visited_positions:
-            state = [10,31]
+        elif low_pos not in self.visited_positions:
+            state = [10,3]
         else:
             state = [10,32]
 
