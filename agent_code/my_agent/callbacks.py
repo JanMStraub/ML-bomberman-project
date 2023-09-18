@@ -38,9 +38,10 @@ def setup(self):
 
     for i in range(11):
         for j in range(50):
+            self.policy[i,j] = [0.15,0.15,0.15,0.15,0.2,0.2] 
             #for k in range(4):
-            for k in range(5):
-                self.policy[i,j,k] = 0.2
+            #for k in range(5):
+                #self.policy[i,j,k] = 0.2
                 #self.policy[i,j,k] = 0.25
 
     self.return_val = np.zeros((11,50,6))
@@ -54,6 +55,10 @@ def setup(self):
     self.bomb_history = []  
     self.bomb_detect_pos_history = []
                     
+
+    """with open("my-saved-model.pt", "rb") as file:
+            self.model = pickle.load(file)
+            self.policy = self.model"""
 
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
@@ -88,7 +93,7 @@ def act(self, game_state: dict) -> str:
         #actions = ACTIONS[0:4]
         actions = ACTIONS[0:6]
         #return np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
-        return np.random.choice(actions, p = [0.2,0.2,0.2,0.2,0.2,0.0])
+        return np.random.choice(actions, p = [0.15,0.15,0.15,0.15,0.2,0.2])
     else:
         state = extract_state(self,game_state)
         #actions = ACTIONS[0:4]
@@ -625,7 +630,7 @@ def extract_state(self,old_game_state):
         elif right_pos in self.visited_positions and left_pos not in self.visited_positions and low_pos in self.visited_positions:
             state = [8,1] 
         # visited left pos
-        # Expect: LEFT OR RIGHT
+        # Expect: LEFT OR DOWN
         elif right_pos in self.visited_positions and left_pos not in self.visited_positions and low_pos not in self.visited_positions:
             state = [8,2]
 

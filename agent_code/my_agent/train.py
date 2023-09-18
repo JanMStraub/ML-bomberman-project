@@ -84,29 +84,29 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
 def get_reward(self,pos,visited_positions,bomb_detect_pos,new_pos,target_pos,bomb,events):
     game_rewards = {
-        e.COIN_COLLECTED: 2,
+        e.COIN_COLLECTED: 1,
         e.KILLED_OPPONENT: 1,
         e.BOMB_DROPPED: 1,
         e.BOMB_EXPLODED: 0,
-        e.MOVED_LEFT: 2,
-        e.MOVED_RIGHT: 2,
-        e.MOVED_UP: 2,
-        e.MOVED_DOWN: 2,
+        e.MOVED_LEFT: 1,
+        e.MOVED_RIGHT: 1,
+        e.MOVED_UP: 1,
+        e.MOVED_DOWN: 1,
         e.WAITED: 0,
-        e.INVALID_ACTION: -3,
+        e.INVALID_ACTION: -1,
         e.TILE_VISITED: -1,
-        e.SURVIVED_ROUND: 5,
+        e.SURVIVED_ROUND: 2,
         e.MOVED_TOWARDS_COIN: 2,
         e.KILLED_SELF: -2,
-        e.CRATE_DESTROYED: 3,
+        e.CRATE_DESTROYED: 2,
         e.COIN_FOUND: 2,
         PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
     }
 
     if pos in visited_positions:
-        reward_ctr = -2
+        reward_ctr = -1
     else:
-        reward_ctr = 2
+        reward_ctr = 0 
 
     if euclidean_distance(pos,target_pos) < euclidean_distance(new_pos,target_pos):
         reward_ctr -= 1
@@ -188,11 +188,11 @@ def mc_control(self,game_state):
                                                   ,self.new_pos_history[i],self.target_coins_history[i],self.bomb_history[i],event))
             i+=1
 
-    if game_state['round'] < 10000:
+    if game_state['round'] < 2500:
         epsilon = 0.5
-    elif game_state['round'] >= 10000 and game_state['round'] < 15000:
+    elif game_state['round'] >= 2500 and game_state['round'] < 5000:
         epsilon = 0.4
-    elif game_state['round'] >= 15000 and game_state['round'] < 30000:
+    elif game_state['round'] >= 5000 and game_state['round'] < 15000:
         epsilon = 0.3
     else:
         epsilon = 0.2
@@ -200,6 +200,7 @@ def mc_control(self,game_state):
     t = 0
     disc= 0.95 
     for state in self.state_history:
+            
         #while t < len(self.state_history)-1: ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
             if self.action_history[t] == 'UP':
                 action = 0
@@ -214,7 +215,10 @@ def mc_control(self,game_state):
             else:
                 action = 5
 
-            if (state,action) not in self.first_visit_check:
+            #if state == [1,0]:
+            #    print(self.action_history[t])
+
+            if True:#(state,action) not in self.first_visit_check:
                 self.first_visit_check.append((state,action))
                 #g = pow(gamma,t) * g + self.reward_history[t]
                 #g += self.reward_history[t]
@@ -228,8 +232,7 @@ def mc_control(self,game_state):
 
                 # greedy 
                 num_actions = 6
-                #num_actions = 4
-                #for i in range(num_actions ):
+                um_actions = 4
                 for i in range(num_actions):
                     if i == a_star:
                         self.policy[state[0],state[1],i] = 1-epsilon+epsilon/num_actions 
