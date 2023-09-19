@@ -30,19 +30,19 @@ def setup(self):
     self.visited_positions = []
     self.new_pos_history = []
 
-    #self.value_estimates = np.zeros((11,50,6))
-    self.value_estimates = np.zeros((11,50,4))
-    #self.policy = np.zeros((11,50,6))
-    self.policy = np.zeros((11,50,4))
+    self.value_estimates = np.zeros((11,50,6))
+    #self.value_estimates = np.zeros((11,50,4))
+    self.policy = np.zeros((11,50,6))
+    #self.policy = np.zeros((11,50,4))
     self.first_visit_check = []
 
     for i in range(11):
         for j in range(50):
-            #self.policy[i,j] = [0.15,0.15,0.15,0.15,0.2,0.2] 
-            for k in range(4):
+            self.policy[i,j] = [0.15,0.15,0.15,0.15,0.2,0.2] 
+            #for k in range(4):
             #for k in range(5):
                 #self.policy[i,j,k] = 0.2
-                self.policy[i,j,k] = 0.25
+                #self.policy[i,j,k] = 0.25
 
     self.return_val = np.zeros((11,50,6))
     self.return_ctr = np.zeros((11,50,6))   
@@ -83,21 +83,21 @@ def act(self, game_state: dict) -> str:
     """
     if game_state['round']>1 and self.train:
         state = extract_state(self,game_state)
-        actions = ACTIONS[0:4]
-        #actions = ACTIONS[0:6]
+        #actions = ACTIONS[0:4]
+        actions = ACTIONS[0:6]
         action = np.random.choice(actions, p = self.policy[state[0],state[1],:])
         return action
     # Initial policy
     elif game_state['round']==1 and self.train:
         # First level actions 
-        actions = ACTIONS[0:4]
-        #actions = ACTIONS[0:6]
-        return np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
+        #actions = ACTIONS[0:4]
+        actions = ACTIONS[0:6]
+        #return np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
         return np.random.choice(actions, p = [0.15,0.15,0.15,0.15,0.2,0.2])
     else:
         state = extract_state(self,game_state)
-        actions = ACTIONS[0:4]
-        #actions = ACTIONS[0:6]
+        #actions = ACTIONS[0:4]
+        actions = ACTIONS[0:6]
         choosed_action = actions[np.argmax(self.policy[state[0],state[1],:])]
         return choosed_action
    
@@ -190,15 +190,15 @@ def extract_state(self,old_game_state):
         # Bomb radar
         # Expect: LEFT
         if bomb_radar(self,left_radar,bombs,old_pos):
-            state = [0,6] 
+            state = [0,5] 
         # Expect: DOWN
         elif bomb_radar(self,down_radar,bombs,old_pos):
-            state = [0,7] 
+            state = [0,6] 
 
         # Crate 
         # Expect: BOMB
-        elif field_map[left_pos] == 1 or field_map[low_pos] == 1:
-            state = [0,8] 
+        #elif field_map[left_pos] == 1 or field_map[low_pos] == 1:
+        #    state = [0,7] 
 
         # Coin radar
         # Expect: LEFT
@@ -227,17 +227,17 @@ def extract_state(self,old_game_state):
     elif neighbourhood == [0,-1,0,-1]:
 
         # Bomb radar
-        # Expect: TOP
+        # Expect: UP
         if bomb_radar(self,top_radar,bombs,old_pos):
-            state = [1,6] 
+            state = [1,5] 
         # Expect: LEFT
         elif bomb_radar(self,left_radar,bombs,old_pos):
-            state = [1,7] 
+            state = [1,6] 
 
         # Crate 
         # Expect: BOMB
-        elif field_map[left_pos] == 1 or field_map[top_pos] == 1:
-            state = [1,8] 
+        #elif field_map[left_pos] == 1 or field_map[top_pos] == 1:
+        #    state = [1,8] 
 
         # Expect: UP
         elif coin_radar(self,top_radar,old_game_state['coins']):
@@ -265,15 +265,15 @@ def extract_state(self,old_game_state):
         # Bomb radar
         # Expect: RIGHT
         if bomb_radar(self,right_radar,bombs,old_pos):
-            state = [2,6] 
+            state = [2,5] 
         # Expect: DOWN
         elif bomb_radar(self,down_radar,bombs,old_pos):
-            state = [2,7] 
+            state = [2,6] 
 
         # Crate 
         # Expect: BOMB
-        elif field_map[low_pos] == 1 or field_map[right_pos] == 1:
-            state = [2,8] 
+        #elif field_map[low_pos] == 1 or field_map[right_pos] == 1:
+        #    state = [2,8] 
         
         # Coin radar
         # Expect: RIGHT
@@ -301,15 +301,15 @@ def extract_state(self,old_game_state):
         # Bomb radar
         # Expect: UP
         if bomb_radar(self,top_radar,bombs,old_pos):
-            state = [3,6] 
+            state = [3,5] 
         # Expect: RIGHT
         elif bomb_radar(self,right_radar,bombs,old_pos):
-            state = [3,7] 
+            state = [3,6] 
 
         # Crate 
         # Expect: BOMB
-        elif field_map[top_pos] == 1 or field_map[right_pos] == 1:
-            state = [3,8] 
+        #elif field_map[top_pos] == 1 or field_map[right_pos] == 1:
+        #    state = [3,8] 
 
         # Coin radar
         # Expect: UP
@@ -336,15 +336,15 @@ def extract_state(self,old_game_state):
         # Bomb radar
         # Expect: LEFT
         if bomb_radar(self,left_radar,bombs,old_pos):
-            state = [4,6] 
+            state = [4,5] 
         # Expect: RIGHT
         elif bomb_radar(self,right_radar,bombs,old_pos):
-            state = [4,7] 
+            state = [4,6] 
 
         # Crate 
         # Expect: BOMB
-        elif field_map[left_pos] == 1 or field_map[right_pos] == 1:
-            state = [4,8] 
+        #elif field_map[left_pos] == 1 or field_map[right_pos] == 1:
+        #    state = [4,8] 
 
         # Coin radar
         # Expect: LEFT
@@ -372,15 +372,15 @@ def extract_state(self,old_game_state):
         # Bomb radar
         # Expect: UP
         if bomb_radar(self,top_radar,bombs,old_pos):
-            state = [5,6] 
+            state = [5,5] 
         # Expect: DOWN
         elif bomb_radar(self,down_radar,bombs,old_pos):
-            state = [5,7] 
+            state = [5,6] 
 
         # Crate 
         # Expect: BOMB
-        elif field_map[top_pos] == 1 or field_map[low_pos] == 1:
-            state = [5,8] 
+        #elif field_map[top_pos] == 1 or field_map[low_pos] == 1:
+        #    state = [5,8] 
 
         # Coin radar
         # Expect: UP
@@ -406,18 +406,18 @@ def extract_state(self,old_game_state):
         # Bomb radar
         # Expect: UP
         if bomb_radar(self,top_radar,bombs,old_pos):
-            state = [6,13] 
+            state = [6,7] 
         # Expect: RIGHT 
         elif bomb_radar(self,right_radar,bombs,old_pos):
-            state = [6,14] 
+            state = [6,8] 
         # Expect: DOWN
         elif bomb_radar(self,down_radar,bombs,old_pos):
-            state = [6,15] 
+            state = [6,9] 
 
         # Crate 
         # Expect: BOMB
-        elif field_map[top_pos] == 1 or field_map[low_pos] == 1 or field_map[right_pos] == 1:
-            state = [6,16] 
+        #elif field_map[top_pos] == 1 or field_map[low_pos] == 1 or field_map[right_pos] == 1:
+        #    state = [6,16] 
 
         # Coin radar
         # Expect: UP
@@ -449,18 +449,18 @@ def extract_state(self,old_game_state):
         # Bomb radar
         # Expect: UP
         if bomb_radar(self,top_radar,bombs,old_pos):
-            state = [7,13] 
+            state = [7,7] 
         # Expect: LEFT
         elif bomb_radar(self,left_radar,bombs,old_pos):
-            state = [7,14] 
+            state = [7,8] 
         # Expect: DOWN
         elif bomb_radar(self,down_radar,bombs,old_pos):
-            state = [7,15] 
+            state = [7,9] 
 
         # Crate 
         # Expect: BOMB
-        elif field_map[top_pos] == 1 or field_map[low_pos] == 1 or field_map[left_pos] == 1:
-            state = [7,16] 
+        #elif field_map[top_pos] == 1 or field_map[low_pos] == 1 or field_map[left_pos] == 1:
+        #    state = [7,16] 
 
         # Coin radar
         # Expect: UP
@@ -492,18 +492,18 @@ def extract_state(self,old_game_state):
         # Bomb radar
         # Expect: RIGHT
         if bomb_radar(self,right_radar,bombs,old_pos):
-            state = [8,13] 
+            state = [8,7] 
         # Expect: LEFT
         elif bomb_radar(self,left_radar,bombs,old_pos):
-            state = [8,14] 
+            state = [8,8] 
         # Expect: DOWN
         elif bomb_radar(self,down_radar,bombs,old_pos):
-            state = [8,15] 
+            state = [8,9] 
 
         # Crate 
         # Expect: BOMB
-        elif field_map[left_pos] == 1 or field_map[low_pos] == 1 or field_map[right_pos] == 1:
-            state = [8,16] 
+        #elif field_map[left_pos] == 1 or field_map[low_pos] == 1 or field_map[right_pos] == 1:
+        #    state = [8,16] 
 
         # Coin radar
         # Expect: RIGHT
@@ -535,18 +535,18 @@ def extract_state(self,old_game_state):
         # Bomb radar
         # Expect: RIGHT
         if bomb_radar(self,right_radar,bombs,old_pos):
-            state = [9,13] 
+            state = [9,7] 
         # Expect: LEFT
         elif bomb_radar(self,left_radar,bombs,old_pos):
-            state = [9,14] 
+            state = [9,8] 
         # Expect: UP
         elif bomb_radar(self,top_radar,bombs,old_pos):
-            state = [9,15] 
+            state = [9,9] 
 
         # Crate 
         # Expect: BOMB
-        elif field_map[top_pos] == 1 or field_map[left_pos] == 1 or field_map[right_pos] == 1:
-            state = [9,16] 
+        #elif field_map[top_pos] == 1 or field_map[left_pos] == 1 or field_map[right_pos] == 1:
+        #    state = [9,16] 
 
         # Coin radar
         # Expect: RIGHT
@@ -577,21 +577,21 @@ def extract_state(self,old_game_state):
         # Bomb radar
         # Expect: RIGHT
         if bomb_radar(self,right_radar,bombs,old_pos):
-            state = [10,37] 
+            state = [10,9] 
         # Expect: LEFT
         elif bomb_radar(self,left_radar,bombs,old_pos):
-            state = [10,38] 
+            state = [10,10] 
         # Expect: UP
         elif bomb_radar(self,top_radar,bombs,old_pos):
-            state = [10,39] 
+            state = [10,11] 
         # Expect: DOWN
         elif bomb_radar(self,down_radar,bombs,old_pos):
-            state = [10,40] 
+            state = [10,12] 
 
         # Crate 
         # Expect: BOMB
-        elif field_map[top_pos] == 1 or field_map[low_pos] == 1 or field_map[left_pos] == 1 or field_map[right_pos] == 1:
-            state = [10,41] 
+        #elif field_map[top_pos] == 1 or field_map[low_pos] == 1 or field_map[left_pos] == 1 or field_map[right_pos] == 1:
+        #    state = [10,41] 
         
         # Coin radar
         # Expect: RIGHT

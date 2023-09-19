@@ -82,7 +82,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     # state_to_features is defined in callbacks.py
     #self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
 
-def get_reward(self,game_state,pos,visited_positions,bomb_detect_pos,new_pos,target_pos,bomb,events):
+def get_reward(self,game_state,crates,pos,visited_positions,bomb_detect_pos,new_pos,target_pos,bomb,events):
     game_rewards = {
         e.COIN_COLLECTED: 1,
         e.KILLED_OPPONENT: 1,
@@ -92,7 +92,7 @@ def get_reward(self,game_state,pos,visited_positions,bomb_detect_pos,new_pos,tar
         e.MOVED_RIGHT: 1,
         e.MOVED_UP: 1,
         e.MOVED_DOWN: 1,
-        e.WAITED: 0,
+        e.WAITED: -1,
         e.INVALID_ACTION: -1,
         e.TILE_VISITED: -1,
         e.SURVIVED_ROUND: 2,
@@ -115,7 +115,7 @@ def get_reward(self,game_state,pos,visited_positions,bomb_detect_pos,new_pos,tar
     else:
         reward_ctr = 0
 
-    state = (extract_state(self,game_state))
+    state = game_state
 
     # DOWN
     if state in [[0,0],[2,0],[5,0],[6,0],[7,0],[8,0],[10,3]]:
@@ -141,14 +141,16 @@ def get_reward(self,game_state,pos,visited_positions,bomb_detect_pos,new_pos,tar
             reward_ctr += 0.5 
         else:
             reward_ctr -= 0.5 
-  
-
+ 
     if euclidean_distance(pos,target_pos) < euclidean_distance(new_pos,target_pos):
         reward_ctr -= 1
     else:
         reward_ctr += 1
 
-    if bomb:    
+    if bomb:      
+        if bomb in crates:
+            reward_ctr+=2
+
         new_pos_euclidean = euclidean_distance(new_pos,bomb)
 
         if euclidean_distance(bomb_detect_pos,bomb) >= new_pos_euclidean:
@@ -182,8 +184,14 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
     #self.transitions.append(Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events)))
 
+    crates = []
+
+    for x in range(17):
+        for y in range(17):
+            if last_game_state['field'][x,y] == 1:
+                crates.append((x,y))
     # MC-Control for update value-function and policy 
-    mc_control(self,last_game_state)
+    mc_control(self,last_game_state,crates)
 
     self.model = self.policy
 
@@ -213,14 +221,16 @@ def reward_from_events(self, events: List[str]) -> int:
     return reward_sum
 
 
-def mc_control(self,game_state):
+def mc_control(self,game_state,crates):
     """
     Monte-Carlo Control 
     """
     i = 0 
     for event in self.event_history: 
-            self.reward_history.append(get_reward(self,game_state,self.visited_positions[i],self.visited_positions[:i],self.bomb_detect_pos_history[i]\
+            self.reward_history.append(get_reward(self,self.state_history[i],crates,self.visited_positions[i],self.visited_positions[:i],self.bomb_detect_pos_history[i]\
                                                   ,self.new_pos_history[i],self.target_coins_history[i],self.bomb_history[i],event))
+            if self.bomb_history[i] in crates:
+                crates.remove(self.bomb_history[i])
             i+=1
 
     if game_state['round'] < 5000:
@@ -266,8 +276,8 @@ def mc_control(self,game_state):
                 a_star = np.argmax(self.value_estimates[state[0],state[1],:])
 
                 # greedy 
-                #num_actions = 6
-                num_actions = 4
+                num_actions = 6
+                #num_actions = 4
                 for i in range(num_actions):
                     if i == a_star:
                         self.policy[state[0],state[1],i] = 1-epsilon+epsilon/num_actions 
