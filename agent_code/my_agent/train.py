@@ -64,17 +64,13 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     #sarsa(self,old_game_state,self_action,new_game_state,get_reward(self,old_game_state['self'][3],\
     #                    self.visited_positions,old_game_state['self'][3],new_game_state['self'][3],self.target_coin,self.bomb,events))
 
-    self.state_history.append(extract_state(self,old_game_state))
+    self.state_history.append(extract_state(self,old_game_state,True))
     self.action_history.append(self_action)
     self.event_history.append(events)
     self.visited_positions.append(old_game_state['self'][3])
     self.new_pos_history.append(new_game_state['self'][3])
-    self.target_coins_history.append(self.target_coin)
-    if 'BOMB_EXPLODED' in events:
-        self.bomb = None
-        self.bomb_detect_pos = None
-    self.bomb_history.append(self.bomb)
-    self.bomb_detect_pos_history.append(self.bomb_detect_pos)
+    
+   
     
     #self.value_estimates = state_to_features(self.value_estimates,old_game_state, new_game_state)
     #trans = Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events))
@@ -82,11 +78,21 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     # state_to_features is defined in callbacks.py
     #self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
 
-def get_reward(self,game_state,crates,pos,visited_positions,bomb_detect_pos,new_pos,target_pos,bomb,events):
+def get_reward(self,crates,events,i):
+
+    state = self.state_history[i]
+    pos = self.visited_positions[i]
+    visited_positions = self.visited_positions[:i]
+    timer = self.bomb_timer_history[i]
+    bomb_deteced_pos = self.visited_positions[i-(3-timer)]
+    new_pos = self.new_pos_history[i]
+    target_coin = self.target_coins_history[i]
+    bomb_pos = self.bomb_history[i]
+    
     game_rewards = {
         e.COIN_COLLECTED: 1,
         e.KILLED_OPPONENT: 1,
-        e.BOMB_DROPPED: 1,
+        e.BOMB_DROPPED: 0.25,
         e.BOMB_EXPLODED: 0,
         e.MOVED_LEFT: 1,
         e.MOVED_RIGHT: 1,
@@ -97,25 +103,17 @@ def get_reward(self,game_state,crates,pos,visited_positions,bomb_detect_pos,new_
         e.TILE_VISITED: -1,
         e.SURVIVED_ROUND: 2,
         e.MOVED_TOWARDS_COIN: 2,
-        e.KILLED_SELF: -2,
+        e.KILLED_SELF: -3,
         e.CRATE_DESTROYED: 2,
         e.COIN_FOUND: 2,
         PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
     }
 
 
-
-    """if pos in visited_positions:
-        reward_ctr = -1
-    else:
-        reward_ctr = 0 """
-    
     if new_pos in visited_positions:
         reward_ctr = -1 
     else:
         reward_ctr = 0
-
-    state = game_state
 
     # DOWN
     if state in [[0,0],[2,0],[5,0],[6,0],[7,0],[8,0],[10,3]]:
@@ -142,20 +140,32 @@ def get_reward(self,game_state,crates,pos,visited_positions,bomb_detect_pos,new_
         else:
             reward_ctr -= 0.5 
  
-    if euclidean_distance(pos,target_pos) < euclidean_distance(new_pos,target_pos):
+    if euclidean_distance(pos,target_coin) < euclidean_distance(new_pos,target_coin):
         reward_ctr -= 1
     else:
         reward_ctr += 1
 
-    if bomb:      
-        if bomb in crates:
-            reward_ctr+=2
+    if timer != 0:#bomb_pos:    
 
-        new_pos_euclidean = euclidean_distance(new_pos,bomb)
+        top_pos = (bomb_pos[0],bomb_pos[1]-1)
+        low_pos = (bomb_pos[0],bomb_pos[1]+1)
+        left_pos = (bomb_pos[0]-1,bomb_pos[1])
+        right_pos = (bomb_pos[0]+1,bomb_pos[1])
 
-        if euclidean_distance(bomb_detect_pos,bomb) >= new_pos_euclidean:
+        if top_pos in crates:
+            reward_ctr+=1
+        if low_pos in crates:
+            reward_ctr+=1
+        if left_pos in crates:
+            reward_ctr+=1
+        if right_pos in crates:
+            reward_ctr+=1
+
+        new_pos_euclidean = euclidean_distance(new_pos,bomb_pos)
+
+        if euclidean_distance(bomb_deteced_pos,bomb_pos) <= new_pos_euclidean:
             reward_ctr -= 2
-        elif avoid_check_(bomb_detect_pos, new_pos, bomb):
+        elif avoid_check_(bomb_deteced_pos,new_pos,bomb_pos):
             reward_ctr += 5 
         elif new_pos_euclidean > 1 and new_pos_euclidean <= 2:
             reward_ctr += 3
@@ -227,17 +237,19 @@ def mc_control(self,game_state,crates):
     """
     i = 0 
     for event in self.event_history: 
-            self.reward_history.append(get_reward(self,self.state_history[i],crates,self.visited_positions[i],self.visited_positions[:i],self.bomb_detect_pos_history[i]\
-                                                  ,self.new_pos_history[i],self.target_coins_history[i],self.bomb_history[i],event))
+            self.reward_history.append(get_reward(self,crates,event,i))
+            #self.reward_history.append(get_reward(self,self.state_history[i],crates,self.visited_positions[i],self.visited_positions[:i],self.bomb_detect_pos_history[i]\
+                                                  #,self.new_pos_history[i],self.target_coins_history[i],self.bomb_history[i],event))
+
             if self.bomb_history[i] in crates:
                 crates.remove(self.bomb_history[i])
             i+=1
 
-    if game_state['round'] < 5000:
+    if game_state['round'] < 20000:
         epsilon = 0.5
-    elif game_state['round'] >= 5000 and game_state['round'] < 7500:
+    elif game_state['round'] >= 35000 and game_state['round'] < 55000:
         epsilon = 0.4
-    elif game_state['round'] >= 7500 and game_state['round'] < 12500:
+    elif game_state['round'] >= 55000 and game_state['round'] < 75000:
         epsilon = 0.3
     else:
         epsilon = 0.2
@@ -293,7 +305,7 @@ def mc_control(self,game_state,crates):
     self.new_pos_history = []
     self.target_coin_history = []
     self.bomb_history = []  
-    self.bomb_detect_pos_history = []
+    self.bomb_timer_history = []
     self.first_visit_check = []
 
 

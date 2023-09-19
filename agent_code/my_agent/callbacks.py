@@ -53,7 +53,7 @@ def setup(self):
     self.bomb_detect_pos = None 
     self.bomb = None
     self.bomb_history = []  
-    self.bomb_detect_pos_history = []
+    self.bomb_timer_history = []
                     
 
     """with open("my-saved-model.pt", "rb") as file:
@@ -82,7 +82,7 @@ def act(self, game_state: dict) -> str:
     :return: The action to take as a string.
     """
     if game_state['round']>1 and self.train:
-        state = extract_state(self,game_state)
+        state = extract_state(self,game_state,False)
         #actions = ACTIONS[0:4]
         actions = ACTIONS[0:6]
         action = np.random.choice(actions, p = self.policy[state[0],state[1],:])
@@ -95,7 +95,7 @@ def act(self, game_state: dict) -> str:
         #return np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
         return np.random.choice(actions, p = [0.15,0.15,0.15,0.15,0.2,0.2])
     else:
-        state = extract_state(self,game_state)
+        state = extract_state(self,game_state,False)
         #actions = ACTIONS[0:4]
         actions = ACTIONS[0:6]
         choosed_action = actions[np.argmax(self.policy[state[0],state[1],:])]
@@ -145,7 +145,7 @@ def state_to_features(value_estimates, old_game_state: dict, new_game_state: dic
     # and return them as a vector
     return stacked_channels.reshape(-1)
 
-def extract_state(self,old_game_state):
+def extract_state(self,old_game_state,train):
     """
     First level for collecting coins has 11 different states which describe 
     the neighbourhood of the current agent position
@@ -189,10 +189,10 @@ def extract_state(self,old_game_state):
 
         # Bomb radar
         # Expect: LEFT
-        if bomb_radar(self,left_radar,bombs,old_pos):
+        if bomb_radar(self,left_radar,bombs,train):
             state = [0,5] 
         # Expect: DOWN
-        elif bomb_radar(self,down_radar,bombs,old_pos):
+        elif bomb_radar(self,down_radar,bombs,train):
             state = [0,6] 
 
         # Crate 
@@ -202,11 +202,11 @@ def extract_state(self,old_game_state):
 
         # Coin radar
         # Expect: LEFT
-        elif coin_radar(self,left_radar,old_game_state['coins']):
+        elif coin_radar(self,left_radar,old_game_state['coins'],train):
             state = [0,3] 
         # visited top pos
         # Expect: DOWN
-        elif coin_radar(self,down_radar,old_game_state['coins']):
+        elif coin_radar(self,down_radar,old_game_state['coins'],train):
             state = [0,4] 
 
         # Visited position
@@ -228,10 +228,10 @@ def extract_state(self,old_game_state):
 
         # Bomb radar
         # Expect: UP
-        if bomb_radar(self,top_radar,bombs,old_pos):
+        if bomb_radar(self,top_radar,bombs,train):
             state = [1,5] 
         # Expect: LEFT
-        elif bomb_radar(self,left_radar,bombs,old_pos):
+        elif bomb_radar(self,left_radar,bombs,train):
             state = [1,6] 
 
         # Crate 
@@ -240,10 +240,10 @@ def extract_state(self,old_game_state):
         #    state = [1,8] 
 
         # Expect: UP
-        elif coin_radar(self,top_radar,old_game_state['coins']):
+        elif coin_radar(self,top_radar,old_game_state['coins'],train):
             state = [1,3] 
         # Expect: LEFT 
-        elif coin_radar(self,left_radar,old_game_state['coins']):
+        elif coin_radar(self,left_radar,old_game_state['coins'],train):
             state = [1,4] 
 
 
@@ -264,10 +264,10 @@ def extract_state(self,old_game_state):
 
         # Bomb radar
         # Expect: RIGHT
-        if bomb_radar(self,right_radar,bombs,old_pos):
+        if bomb_radar(self,right_radar,bombs,train):
             state = [2,5] 
         # Expect: DOWN
-        elif bomb_radar(self,down_radar,bombs,old_pos):
+        elif bomb_radar(self,down_radar,bombs,train):
             state = [2,6] 
 
         # Crate 
@@ -277,10 +277,10 @@ def extract_state(self,old_game_state):
         
         # Coin radar
         # Expect: RIGHT
-        elif coin_radar(self,right_radar,old_game_state['coins']):
+        elif coin_radar(self,right_radar,old_game_state['coins'],train):
             state = [2,3] 
         # Expect: DOWN
-        elif coin_radar(self,down_radar,old_game_state['coins']):
+        elif coin_radar(self,down_radar,old_game_state['coins'],train):
             state = [2,4] 
 
         # visited right pos
@@ -300,10 +300,10 @@ def extract_state(self,old_game_state):
 
         # Bomb radar
         # Expect: UP
-        if bomb_radar(self,top_radar,bombs,old_pos):
+        if bomb_radar(self,top_radar,bombs,train):
             state = [3,5] 
         # Expect: RIGHT
-        elif bomb_radar(self,right_radar,bombs,old_pos):
+        elif bomb_radar(self,right_radar,bombs,train):
             state = [3,6] 
 
         # Crate 
@@ -313,10 +313,10 @@ def extract_state(self,old_game_state):
 
         # Coin radar
         # Expect: UP
-        elif coin_radar(self,top_radar,old_game_state['coins']):
+        elif coin_radar(self,top_radar,old_game_state['coins'],train):
             state = [3,3] 
         # Expect: RIGHT
-        elif coin_radar(self,right_radar,old_game_state['coins']):
+        elif coin_radar(self,right_radar,old_game_state['coins'],train):
             state = [3,4] 
 
         # visited right pos
@@ -335,10 +335,10 @@ def extract_state(self,old_game_state):
 
         # Bomb radar
         # Expect: LEFT
-        if bomb_radar(self,left_radar,bombs,old_pos):
+        if bomb_radar(self,left_radar,bombs,train):
             state = [4,5] 
         # Expect: RIGHT
-        elif bomb_radar(self,right_radar,bombs,old_pos):
+        elif bomb_radar(self,right_radar,bombs,train):
             state = [4,6] 
 
         # Crate 
@@ -348,10 +348,10 @@ def extract_state(self,old_game_state):
 
         # Coin radar
         # Expect: LEFT
-        elif coin_radar(self,left_radar,old_game_state['coins']):
+        elif coin_radar(self,left_radar,old_game_state['coins'],train):
             state = [4,3] 
         # Expect: RIGHT
-        elif coin_radar(self,right_radar,old_game_state['coins']):
+        elif coin_radar(self,right_radar,old_game_state['coins'],train):
             state = [4,4] 
 
         # visited right pos
@@ -371,10 +371,10 @@ def extract_state(self,old_game_state):
 
         # Bomb radar
         # Expect: UP
-        if bomb_radar(self,top_radar,bombs,old_pos):
+        if bomb_radar(self,top_radar,bombs,train):
             state = [5,5] 
         # Expect: DOWN
-        elif bomb_radar(self,down_radar,bombs,old_pos):
+        elif bomb_radar(self,down_radar,bombs,train):
             state = [5,6] 
 
         # Crate 
@@ -384,10 +384,10 @@ def extract_state(self,old_game_state):
 
         # Coin radar
         # Expect: UP
-        elif coin_radar(self,top_radar,old_game_state['coins']):
+        elif coin_radar(self,top_radar,old_game_state['coins'],train):
             state = [5,3] 
         # Expect: DOWN
-        elif coin_radar(self,down_radar,old_game_state['coins']):
+        elif coin_radar(self,down_radar,old_game_state['coins'],train):
             state = [5,4] 
 
         # Expect: DOWN
@@ -405,13 +405,13 @@ def extract_state(self,old_game_state):
 
         # Bomb radar
         # Expect: UP
-        if bomb_radar(self,top_radar,bombs,old_pos):
+        if bomb_radar(self,top_radar,bombs,train):
             state = [6,7] 
         # Expect: RIGHT 
-        elif bomb_radar(self,right_radar,bombs,old_pos):
+        elif bomb_radar(self,right_radar,bombs,train):
             state = [6,8] 
         # Expect: DOWN
-        elif bomb_radar(self,down_radar,bombs,old_pos):
+        elif bomb_radar(self,down_radar,bombs,train):
             state = [6,9] 
 
         # Crate 
@@ -421,13 +421,13 @@ def extract_state(self,old_game_state):
 
         # Coin radar
         # Expect: UP
-        elif coin_radar(self,top_radar,old_game_state['coins']):
+        elif coin_radar(self,top_radar,old_game_state['coins'],train):
             state = [6,4] 
         # Expect: RIGHT
-        elif coin_radar(self,right_radar,old_game_state['coins']):
+        elif coin_radar(self,right_radar,old_game_state['coins'],train):
             state = [6,5] 
         # Expect: DOWN
-        elif coin_radar(self,down_radar,old_game_state['coins']):
+        elif coin_radar(self,down_radar,old_game_state['coins'],train):
             state = [6,6] 
 
         # Expect: DOWN
@@ -448,13 +448,13 @@ def extract_state(self,old_game_state):
 
         # Bomb radar
         # Expect: UP
-        if bomb_radar(self,top_radar,bombs,old_pos):
+        if bomb_radar(self,top_radar,bombs,train):
             state = [7,7] 
         # Expect: LEFT
-        elif bomb_radar(self,left_radar,bombs,old_pos):
+        elif bomb_radar(self,left_radar,bombs,train):
             state = [7,8] 
         # Expect: DOWN
-        elif bomb_radar(self,down_radar,bombs,old_pos):
+        elif bomb_radar(self,down_radar,bombs,train):
             state = [7,9] 
 
         # Crate 
@@ -464,13 +464,13 @@ def extract_state(self,old_game_state):
 
         # Coin radar
         # Expect: UP
-        elif coin_radar(self,top_radar,old_game_state['coins']):
+        elif coin_radar(self,top_radar,old_game_state['coins'],train):
             state = [7,4] 
         # Expect: LEFT
-        elif coin_radar(self,left_radar,old_game_state['coins']):
+        elif coin_radar(self,left_radar,old_game_state['coins'],train):
             state = [7,5] 
         # Expect: DOWN
-        elif coin_radar(self,down_radar,old_game_state['coins']):
+        elif coin_radar(self,down_radar,old_game_state['coins'],train):
             state = [7,6] 
 
         # Expect: DOWN      
@@ -491,13 +491,13 @@ def extract_state(self,old_game_state):
 
         # Bomb radar
         # Expect: RIGHT
-        if bomb_radar(self,right_radar,bombs,old_pos):
+        if bomb_radar(self,right_radar,bombs,train):
             state = [8,7] 
         # Expect: LEFT
-        elif bomb_radar(self,left_radar,bombs,old_pos):
+        elif bomb_radar(self,left_radar,bombs,train):
             state = [8,8] 
         # Expect: DOWN
-        elif bomb_radar(self,down_radar,bombs,old_pos):
+        elif bomb_radar(self,down_radar,bombs,train):
             state = [8,9] 
 
         # Crate 
@@ -507,13 +507,13 @@ def extract_state(self,old_game_state):
 
         # Coin radar
         # Expect: RIGHT
-        elif coin_radar(self,right_radar,old_game_state['coins']):
+        elif coin_radar(self,right_radar,old_game_state['coins'],train):
             state = [8,4] 
         # Expect: LEFT
-        elif coin_radar(self,left_radar,old_game_state['coins']):
+        elif coin_radar(self,left_radar,old_game_state['coins'],train):
             state = [8,5] 
         # Expect: DOWN
-        elif coin_radar(self,down_radar,old_game_state['coins']):
+        elif coin_radar(self,down_radar,old_game_state['coins'],train):
             state = [8,6] 
 
         # Expect: DOWN
@@ -534,13 +534,13 @@ def extract_state(self,old_game_state):
 
         # Bomb radar
         # Expect: RIGHT
-        if bomb_radar(self,right_radar,bombs,old_pos):
+        if bomb_radar(self,right_radar,bombs,train):
             state = [9,7] 
         # Expect: LEFT
-        elif bomb_radar(self,left_radar,bombs,old_pos):
+        elif bomb_radar(self,left_radar,bombs,train):
             state = [9,8] 
         # Expect: UP
-        elif bomb_radar(self,top_radar,bombs,old_pos):
+        elif bomb_radar(self,top_radar,bombs,train):
             state = [9,9] 
 
         # Crate 
@@ -550,13 +550,13 @@ def extract_state(self,old_game_state):
 
         # Coin radar
         # Expect: RIGHT
-        elif coin_radar(self,right_radar,old_game_state['coins']):
+        elif coin_radar(self,right_radar,old_game_state['coins'],train):
             state = [9,4] 
         # Expect: LEFT
-        elif coin_radar(self,left_radar,old_game_state['coins']):
+        elif coin_radar(self,left_radar,old_game_state['coins'],train):
             state = [9,5] 
         # Expect: UP
-        elif coin_radar(self,top_radar,old_game_state['coins']):
+        elif coin_radar(self,top_radar,old_game_state['coins'],train):
             state = [9,6] 
 
 
@@ -576,16 +576,16 @@ def extract_state(self,old_game_state):
     else:
         # Bomb radar
         # Expect: RIGHT
-        if bomb_radar(self,right_radar,bombs,old_pos):
+        if bomb_radar(self,right_radar,bombs,train):
             state = [10,9] 
         # Expect: LEFT
-        elif bomb_radar(self,left_radar,bombs,old_pos):
+        elif bomb_radar(self,left_radar,bombs,train):
             state = [10,10] 
         # Expect: UP
-        elif bomb_radar(self,top_radar,bombs,old_pos):
+        elif bomb_radar(self,top_radar,bombs,train):
             state = [10,11] 
         # Expect: DOWN
-        elif bomb_radar(self,down_radar,bombs,old_pos):
+        elif bomb_radar(self,down_radar,bombs,train):
             state = [10,12] 
 
         # Crate 
@@ -595,16 +595,16 @@ def extract_state(self,old_game_state):
         
         # Coin radar
         # Expect: RIGHT
-        elif coin_radar(self,right_radar,old_game_state['coins']):
+        elif coin_radar(self,right_radar,old_game_state['coins'],train):
             state = [10,5] 
         # Expect: LEFT
-        elif coin_radar(self,left_radar,old_game_state['coins']):
+        elif coin_radar(self,left_radar,old_game_state['coins'],train):
             state = [10,6] 
         # Expect: UP
-        elif coin_radar(self,top_radar,old_game_state['coins']):
+        elif coin_radar(self,top_radar,old_game_state['coins'],train):
             state = [10,7] 
         # Expect: DOWN
-        elif coin_radar(self,down_radar,old_game_state['coins']):
+        elif coin_radar(self,down_radar,old_game_state['coins'],train):
             state = [10,8] 
 
         # Expect: Right 
@@ -622,20 +622,35 @@ def extract_state(self,old_game_state):
         else:
             state = [10,4]
 
+    if train:
+        self.target_coins_history.append(self.target_coin)
+        self.bomb_history.append(self.bomb)
+        
+        index = None
+        if self.bomb:
+            if bombs:
+                index = bombs.index(self.bomb)
+                self.bomb_timer_history.append(timer[index])
+            else:
+                self.bomb_timer_history.append(0)
+        else:
+            self.bomb_timer_history.append(0)
+
     return state 
 
-def coin_radar(self,radar,coin):
+
+def coin_radar(self,radar,coin,train):
     for location in radar:
         if location in coin:
-            self.target_coin = location
+            if train:
+                self.target_coin = location
             return True
     return False
 
-def bomb_radar(self,radar,bombs,old_pos):
+def bomb_radar(self,radar,bombs,train):
     for location in radar:
         if location in bombs:
-            self.bomb = location
-            #if t > 0 ? 
-            self.bomb_detect_pos = old_pos
+            if train:
+                self.bomb = location
             return True
     return False
