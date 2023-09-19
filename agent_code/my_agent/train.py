@@ -82,7 +82,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     # state_to_features is defined in callbacks.py
     #self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
 
-def get_reward(self,pos,visited_positions,bomb_detect_pos,new_pos,target_pos,bomb,events):
+def get_reward(self,game_state,pos,visited_positions,bomb_detect_pos,new_pos,target_pos,bomb,events):
     game_rewards = {
         e.COIN_COLLECTED: 1,
         e.KILLED_OPPONENT: 1,
@@ -103,10 +103,45 @@ def get_reward(self,pos,visited_positions,bomb_detect_pos,new_pos,target_pos,bom
         PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
     }
 
-    if pos in visited_positions:
+
+
+    """if pos in visited_positions:
         reward_ctr = -1
     else:
-        reward_ctr = 0 
+        reward_ctr = 0 """
+    
+    if new_pos in visited_positions:
+        reward_ctr = -1 
+    else:
+        reward_ctr = 0
+
+    state = (extract_state(self,game_state))
+
+    # DOWN
+    if state in [[0,0],[2,0],[5,0],[6,0],[7,0],[8,0],[10,3]]:
+        if new_pos[1]-pos[1] == 1:
+            reward_ctr += 0.5 
+        else:
+            reward_ctr -= 0.5 
+    # UP 
+    elif state in [[1,0],[3,0],[5,1],[6,1],[9,0],[7,2],[10,2]]:
+        if pos[1]-new_pos[1] == 1:
+            reward_ctr += 0.5 
+        else:
+            reward_ctr -= 0.5 
+    # RIGHT
+    elif state in [[2,1],[3,1],[4,1],[6,2],[8,2],[9,2],[10,0]]:
+        if new_pos[0]-pos[0] == 1:
+            reward_ctr += 0.5 
+        else:
+            reward_ctr -= 0.5 
+    # LEFT
+    elif state in [[0,1],[1,1],[4,0],[7,1],[8,1],[9,1],[10,1]]:
+        if pos[0]-new_pos[0] == 1:
+            reward_ctr += 0.5 
+        else:
+            reward_ctr -= 0.5 
+  
 
     if euclidean_distance(pos,target_pos) < euclidean_distance(new_pos,target_pos):
         reward_ctr -= 1
@@ -184,15 +219,15 @@ def mc_control(self,game_state):
     """
     i = 0 
     for event in self.event_history: 
-            self.reward_history.append(get_reward(self,self.visited_positions[i],self.visited_positions[:i],self.bomb_detect_pos_history[i]\
+            self.reward_history.append(get_reward(self,game_state,self.visited_positions[i],self.visited_positions[:i],self.bomb_detect_pos_history[i]\
                                                   ,self.new_pos_history[i],self.target_coins_history[i],self.bomb_history[i],event))
             i+=1
 
-    if game_state['round'] < 250:
+    if game_state['round'] < 5000:
         epsilon = 0.5
-    elif game_state['round'] >= 250 and game_state['round'] < 500:
+    elif game_state['round'] >= 5000 and game_state['round'] < 7500:
         epsilon = 0.4
-    elif game_state['round'] >= 500 and game_state['round'] < 1500:
+    elif game_state['round'] >= 7500 and game_state['round'] < 12500:
         epsilon = 0.3
     else:
         epsilon = 0.2
