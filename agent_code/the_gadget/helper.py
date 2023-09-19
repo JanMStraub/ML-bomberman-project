@@ -87,22 +87,22 @@ def calculate_blast_radius(game_state, blast_radius):
 
     return danger_zone
 
-# coin list filtern
-# nur in eine Achse und nur vier Schritte
-def check_coin_distance(old_game_state, new_game_state):
+
+def find_closest_coin(old_game_state, new_game_state):
     old_agent_position = old_game_state["self"][3]
     new_agent_position = new_game_state["self"][3]
+    closest_coin_position = min(new_game_state["coins"], key=lambda coin: dist(new_agent_position, coin))
     
-    for coin_position_new in new_game_state["coins"]:
-        for coin_position_old in old_game_state["coins"]:
-            if coin_position_new == coin_position_old:
-                old_dist = dist(old_agent_position, coin_position_new)
-                new_dist = dist(new_agent_position, coin_position_new)
-                
-                if new_dist < old_dist:
-                    return True
-                else:
-                    return False
+    old_distance = dist(old_agent_position, closest_coin_position)
+    new_distance = dist(new_agent_position, closest_coin_position)
+    
+    if new_distance < old_distance:
+        return 1
+    
+    if new_distance == old_distance:
+        return 2
+    
+    return 0
 
 
 def check_movement(self, old_game_state, new_game_state):
@@ -130,6 +130,3 @@ def check_actions(self, action):
     
     if action_count > 10:
         return True
-    
-
-# ne coins collected

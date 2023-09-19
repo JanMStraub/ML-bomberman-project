@@ -10,7 +10,7 @@ import numpy as np
 from .callbacks import state_to_features, ACTIONS
 from .q_network import DQN
 from .replay_memory import ReplayMemory, Transition
-from .helper import check_danger_zone, check_coin_distance, check_movement, check_actions
+from .helper import check_danger_zone, find_closest_coin, check_movement, check_actions
 from settings import COLS, ROWS, BOMB_POWER
 
 # Hyper parameters -- DO modify
@@ -37,7 +37,6 @@ def setup_training(self):
     self.visited_tiles = []
     self.same_position = 0
     self.action_queue = queue.Queue(maxsize=10)
-    self.step_count = 0
 
     # Initialize the policy network and the target network
     self.policy_net = DQN(MAT_SIZE, len(ACTIONS), HIDDEN_SIZE)
@@ -92,10 +91,11 @@ def check_conditions(self, old_game_state: dict, new_game_state: dict, events: L
             self.logger.debug("Event: BOMB_EVADED")
             events.append(BOMB_EVADED)
     
-    if check_coin_distance(old_game_state, new_game_state):
+    if find_closest_coin(old_game_state, new_game_state) == 1:
         self.logger.debug("Event: CLOSER_TO_COIN")
         events.append(CLOSER_TO_COIN)
-    else:
+    
+    if find_closest_coin(old_game_state, new_game_state) == 0:
         self.logger.debug("Event: FARTHER_FROM_COIN")
         events.append(FARTHER_FROM_COIN)
     
@@ -146,15 +146,15 @@ def reward_from_events(self, events: List[str]) -> int:
         e.MOVED_RIGHT: 0.1,
         e.MOVED_UP: 0.1,
         e.MOVED_DOWN: 0.1,
-        e.WAITED: -0.5,
+        e.WAITED: -0.8,
         e.INVALID_ACTION: -1,
-        e.BOMB_DROPPED: -0.4,
+        e.BOMB_DROPPED: -0.7,
         #e.BOMB_EXPLODED: 0.5,
-        e.CRATE_DESTROYED: 0.2,
+        #e.CRATE_DESTROYED: 0.2,
         #e.COIN_FOUND: 0.5,
         e.COIN_COLLECTED: 0.5,
         #e.KILLED_OPPONENT: 1,
-        e.KILLED_SELF: -1,
+        #e.KILLED_SELF: -1,
         #e.GOT_KILLED: -1,
         #e.OPPONENT_ELIMINATED: 0.7,
         #e.SURVIVED_ROUND: 1,
@@ -162,7 +162,7 @@ def reward_from_events(self, events: List[str]) -> int:
         #IN_BOMB_RADIUS: -0.5,
         #BOMB_EVADED: 0.5,
         CLOSER_TO_COIN: 0.3,
-        #FARTHER_FROM_COIN: -0.5,
+        FARTHER_FROM_COIN: -0.5,
         #NOT_MOVING: -1,
         #ACTION_PENALTY: -1,
     }
