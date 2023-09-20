@@ -31,7 +31,9 @@ def setup(self):
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
     self.logger.debug('Successfully entered setup code')
-    self.visited_tiles =[]
+    self.visited_tiles = []
+    self.closest_coin_position = None
+    
     # Check if a saved model file exists, and whether to train from scratch or load it
     model_file_path = "my-saved-model.pt"
     if self.train or not os.path.isfile(model_file_path):
@@ -78,6 +80,8 @@ def act(self, game_state: dict) -> str:
 
         if random.random() > random_prob:
             return act_random(self, game_state)
+        else:
+            return act_learned(self, game_state)
     
     return act_learned(self, game_state)
 

@@ -4,6 +4,7 @@ import torch
 import torch.nn.functional as F
 from torch import optim
 from typing import List
+from torch.optim import lr_scheduler
 
 import events as e
 import numpy as np
@@ -14,7 +15,7 @@ from .helper import check_danger_zone, find_closest_coin, check_movement, check_
 from settings import COLS, ROWS, BOMB_POWER
 
 # Hyper parameters -- DO modify
-GAMMA = 0.95
+GAMMA = 0.1
 BATCH_SIZE = 128
 MAT_SIZE = COLS * ROWS
 HIDDEN_SIZE = 64
@@ -45,7 +46,8 @@ def setup_training(self):
     # Load the initial weights of the target network
     self.target_net.load_state_dict(self.policy_net.state_dict())
 
-    self.optimizer = optim.RMSprop(self.policy_net.parameters())
+    self.optimizer = optim.SGD(self.policy_net.parameters(), lr = 0.3)
+    self.scheduler = lr_scheduler.StepLR(self.optimizer, step_size = 10000, gamma = 0.1)
     self.memory = ReplayMemory(10000)
 
 
@@ -91,11 +93,11 @@ def check_conditions(self, old_game_state: dict, new_game_state: dict, events: L
             self.logger.debug("Event: BOMB_EVADED")
             events.append(BOMB_EVADED)
     
-    if find_closest_coin(old_game_state, new_game_state) == 1:
+    if find_closest_coin(self, old_game_state, new_game_state) == 1:
         self.logger.debug("Event: CLOSER_TO_COIN")
         events.append(CLOSER_TO_COIN)
     
-    if find_closest_coin(old_game_state, new_game_state) == 0:
+    if find_closest_coin(self, old_game_state, new_game_state) == 0:
         self.logger.debug("Event: FARTHER_FROM_COIN")
         events.append(FARTHER_FROM_COIN)
     
@@ -151,7 +153,7 @@ def reward_from_events(self, events: List[str]) -> int:
         e.BOMB_DROPPED: -0.7,
         #e.BOMB_EXPLODED: 0.5,
         #e.CRATE_DESTROYED: 0.2,
-        #e.COIN_FOUND: 0.5,
+        e.COIN_FOUND: 0.5,
         e.COIN_COLLECTED: 0.5,
         #e.KILLED_OPPONENT: 1,
         #e.KILLED_SELF: -1,
@@ -160,7 +162,7 @@ def reward_from_events(self, events: List[str]) -> int:
         #e.SURVIVED_ROUND: 1,
         ALREADY_VISITED: -0.5,
         #IN_BOMB_RADIUS: -0.5,
-        #BOMB_EVADED: 0.5,
+        #BOMB_EVADED: 0.3,
         CLOSER_TO_COIN: 0.3,
         FARTHER_FROM_COIN: -0.5,
         #NOT_MOVING: -1,
@@ -176,53 +178,44 @@ def reward_from_events(self, events: List[str]) -> int:
 
 
 def optimize_model(self, action):
+    # Check if there are enough samples in the replay memory
     if len(self.memory) < BATCH_SIZE:
         return
 
-    # Sample a batch of transitions from the replay memory
+    # Sample a batch of transitions from replay memory
     transitions = self.memory.sample(BATCH_SIZE)
     batch = Transition(*zip(*transitions))
-
-    # Create a mask to identify non-final next states
+    
+    # Filter non-final next states and convert them to a PyTorch tensor
     non_final_mask = torch.tensor([s is not None for s in batch.next_state], dtype=torch.bool)
+    non_final_next_states = torch.from_numpy(
+        np.array([s for s in batch.next_state if s is not None], dtype=np.float32)
+    )
 
-    # Filter out non-final next states and convert them to a tensor
-    # Combine the list of NumPy arrays into a single NumPy array
-    non_final_next_states = np.array([s for s in batch.next_state if s is not None], dtype=np.float32)
+    # Convert batched states to a PyTorch tensor
+    state_batch = torch.from_numpy(np.array(batch.state, dtype=np.float32))
 
-    # Convert the NumPy array to a PyTorch tensor
-    non_final_next_states = torch.from_numpy(non_final_next_states)
-
-    # Convert the batch data into tensors
-    # Combine the list of NumPy arrays into a single NumPy array
-    state_batch = np.array(batch.state, dtype=np.float32)
-
-    # Convert the NumPy array to a PyTorch tensor
-    state_batch = torch.from_numpy(state_batch)
-    action_batch = torch.zeros((BATCH_SIZE, len(ACTIONS)), dtype=torch.int64)
-
-    # Use a list comprehension to get the action indices for each item in batch.action
+    # Create a one-hot encoded tensor for the selected actions in the batch
     action_indices = [ACTIONS.index(action) for action in batch.action]
-
-    # Use advanced indexing to set the corresponding elements in action_batch to 1
+    action_batch = torch.zeros(BATCH_SIZE, len(ACTIONS), dtype=torch.float32)
     action_batch[range(BATCH_SIZE), action_indices] = 1
 
-    reward_batch = torch.tensor(batch.reward, dtype=torch.float32)
+    # Compute Q-values for the selected actions in the current policy network
+    state_action_values = self.policy_net(state_batch).gather(1, torch.tensor(action_indices).unsqueeze(1))
 
-    # Compute Q-values for the current state-action pairs
-    state_action_values = self.policy_net(state_batch).gather(1, action_batch.argmax(dim=1, keepdim=True))
-
-    # Compute the expected Q-values for the next states
+    # Compute the maximum Q-values for non-final next states using the target network
     next_state_values = torch.zeros(BATCH_SIZE, dtype=torch.float32)
-    next_state_values[non_final_mask] = self.target_net(non_final_next_states).max(dim=1).values
+    next_state_values[non_final_mask] = self.target_net(non_final_next_states).max(1).values.detach()
 
-    # Compute the expected Q-values using the Bellman equation
+    # Compute the expected Q-values (target) using the Bellman equation
+    reward_batch = torch.tensor(batch.reward, dtype=torch.float32)
     expected_state_action_values = (next_state_values * GAMMA) + reward_batch
 
-    # Compute the Huber loss
+    # Compute the loss using the Huber loss (smooth L1 loss)
     loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
 
-    # Optimize the model
+    # Optimize the model by backpropagation
     self.optimizer.zero_grad()
     loss.backward()
     self.optimizer.step()
+    self.scheduler.step()

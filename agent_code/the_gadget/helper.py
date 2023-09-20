@@ -88,20 +88,23 @@ def calculate_blast_radius(game_state, blast_radius):
     return danger_zone
 
 
-def find_closest_coin(old_game_state, new_game_state):
+def find_closest_coin(self, old_game_state, new_game_state):
     old_agent_position = old_game_state["self"][3]
     new_agent_position = new_game_state["self"][3]
-    closest_coin_position = min(new_game_state["coins"], key=lambda coin: dist(new_agent_position, coin))
     
-    old_distance = dist(old_agent_position, closest_coin_position)
-    new_distance = dist(new_agent_position, closest_coin_position)
-    
-    if new_distance < old_distance:
-        return 1
-    
-    if new_distance == old_distance:
-        return 2
-    
+    if len(new_game_state["coins"]) != 0:
+
+        self.closest_coin_position = min(new_game_state["coins"], key=lambda coin: dist(new_agent_position, coin))
+        
+        old_distance = dist(old_agent_position, self.closest_coin_position)
+        new_distance = dist(new_agent_position, self.closest_coin_position)
+        
+        if new_distance < old_distance:
+            return 1
+        
+        if new_distance == old_distance:
+            return 2
+
     return 0
 
 
