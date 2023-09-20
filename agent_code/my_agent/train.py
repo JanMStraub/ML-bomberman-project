@@ -60,17 +60,21 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     """# Idea: Add your own events to hand out rewards
     if ...:
         events.append(PLACEHOLDER_EVENT)"""
+    crates = []
+    for x in range(17):
+        for y in range(17):
+            if old_game_state['field'][x,y] == 1:
+                crates.append((x,y))
 
-    #sarsa(self,old_game_state,self_action,new_game_state,get_reward(self,old_game_state['self'][3],\
-    #                    self.visited_positions,old_game_state['self'][3],new_game_state['self'][3],self.target_coin,self.bomb,events))
+    
 
     self.state_history.append(extract_state(self,old_game_state,True))
     self.action_history.append(self_action)
     self.event_history.append(events)
     self.visited_positions.append(old_game_state['self'][3])
     self.new_pos_history.append(new_game_state['self'][3])
-    
-   
+
+    sarsa(self,old_game_state,self_action,new_game_state,events)
     
     #self.value_estimates = state_to_features(self.value_estimates,old_game_state, new_game_state)
     #trans = Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events))
@@ -201,7 +205,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
             if last_game_state['field'][x,y] == 1:
                 crates.append((x,y))
     # MC-Control for update value-function and policy 
-    mc_control(self,last_game_state,crates)
+    #mc_control(self,last_game_state,crates)
+    #mc_constant_alpha(self,last_game_state,crates)
 
     self.model = self.policy
 
@@ -245,11 +250,11 @@ def mc_control(self,game_state,crates):
                 crates.remove(self.bomb_history[i])
             i+=1
 
-    if game_state['round'] < 20000:
+    if game_state['round'] < 500:
         epsilon = 0.5
-    elif game_state['round'] >= 35000 and game_state['round'] < 55000:
+    elif game_state['round'] >= 500 and game_state['round'] < 1000:
         epsilon = 0.4
-    elif game_state['round'] >= 55000 and game_state['round'] < 75000:
+    elif game_state['round'] >= 1000 and game_state['round'] < 1500:
         epsilon = 0.3
     else:
         epsilon = 0.2
@@ -288,8 +293,8 @@ def mc_control(self,game_state,crates):
                 a_star = np.argmax(self.value_estimates[state[0],state[1],:])
 
                 # greedy 
-                num_actions = 6
-                #num_actions = 4
+                #num_actions = 6
+                num_actions = 4
                 for i in range(num_actions):
                     if i == a_star:
                         self.policy[state[0],state[1],i] = 1-epsilon+epsilon/num_actions 
@@ -308,17 +313,93 @@ def mc_control(self,game_state,crates):
     self.bomb_timer_history = []
     self.first_visit_check = []
 
+    return 0
+
+
+def mc_constant_alpha(self,game_state,crates):
+    """
+    Monte-Carlo Control 
+    """
+    i = 0 
+    for event in self.event_history: 
+            self.reward_history.append(get_reward(self,crates,event,i))
+            
+            if self.bomb_history[i] in crates:
+                crates.remove(self.bomb_history[i])
+            i+=1
+
+    if game_state['round'] < 500:
+        epsilon = 0.5
+    elif game_state['round'] >= 500 and game_state['round'] < 1000:
+        epsilon = 0.4
+    elif game_state['round'] >= 1000 and game_state['round'] < 1500:
+        epsilon = 0.3
+    else:
+        epsilon = 0.2
+    g = 0 
+    t = 0
+    disc= 0.95 
+    alpha = 0.1
+    for state in self.state_history:
+            
+        #while t < len(self.state_history)-1: ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
+            if self.action_history[t] == 'UP':
+                action = 0
+            elif self.action_history[t] == 'RIGHT':
+                action = 1 
+            elif self.action_history[t] == 'DOWN':
+                action = 2
+            elif self.action_history[t] == 'LEFT':
+                action = 3
+            elif self.action_history[t] == 'WAIT':
+                action = 4
+            else:
+                action = 5
+
+            #if state == [1,0]:
+            #    print(self.action_history[t])
+
+            if True:#(state,action) not in self.first_visit_check:
+                self.first_visit_check.append((state,action))
+                #g = pow(gamma,t) * g + self.reward_history[t]
+                #g += self.reward_history[t]
+                g = get_state_return(disc,t,self.reward_history[t:])
+
+                self.value_estimates[state[0],state[1],action] += alpha*(g-self.value_estimates[state[0],state[1],action]) 
+                a_star = np.argmax(self.value_estimates[state[0],state[1],:])
+
+                # greedy 
+                #num_actions = 6
+                num_actions = 4
+                for i in range(num_actions):
+                    if i == a_star:
+                        self.policy[state[0],state[1],i] = 1-epsilon+epsilon/num_actions 
+                    else:
+                        self.policy[state[0],state[1],i] = epsilon/num_actions 
+            t+=1
+    
+    self.state_history = []
+    self.action_history = []
+    self.event_history = []
+    self.reward_history = []
+    self.visited_positions = []
+    self.new_pos_history = []
+    self.target_coin_history = []
+    self.bomb_history = []  
+    self.bomb_timer_history = []
+    self.first_visit_check = []
 
     return 0
 
-def sarsa(self,old_game_state,self_action,new_game_state,reward):
+
+def sarsa(self,old_game_state,self_action,new_game_state,events):
     
-    epsilon = 0.1
+    epsilon = 0.2
     alpha = 0.2
     gamma = 0.95 
     
-    old_state = extract_state(self,old_game_state)
-    new_state = extract_state(self,new_game_state)
+    old_state = extract_state(self,old_game_state,True)
+    new_state = extract_state(self,new_game_state,True)
 
     
     if self_action == 'UP':
@@ -334,20 +415,93 @@ def sarsa(self,old_game_state,self_action,new_game_state,reward):
     else:
         action = 5
 
-    estimated_action = np.random.choice([0,1,2,3,4,5], p = self.policy[new_state[0],new_state[0],:])
+    reward = get_sarsa_reward(self,old_state,old_game_state,new_game_state,events)
+
+    estimated_action = np.random.choice([0,1,2,3], p = self.policy[new_state[0],new_state[1],:])
     
     self.value_estimates[old_state[0],old_state[1],action] += alpha*(reward+gamma*self.value_estimates[new_state[0],new_state[1],estimated_action]-self.value_estimates[old_state[0],old_state[1],action])
 
     a_star = np.argmax(self.value_estimates[old_state[0],old_state[1],:])
 
     # greedy 
-    for i in range(6):
+    num_actions = 4
+    for i in range(num_actions):
         if i == a_star:
-            self.policy[old_state[0],old_state[1],i] = 1-epsilon+epsilon/6
+            self.policy[old_state[0],old_state[1],i] = 1-epsilon+epsilon/num_actions
         else:
-            self.policy[old_state[0],old_state[1],i] = epsilon/6
+            self.policy[old_state[0],old_state[1],i] = epsilon/num_actions
 
     return 0 
+
+def get_sarsa_reward(self,state,old_state,new_state,events):
+   
+    pos = old_state['self'][3]
+    visited_positions = self.visited_positions
+
+    new_pos = new_state['self'][3]
+    target_coin = self.target_coin
+    
+    game_rewards = {
+        e.COIN_COLLECTED: 1,
+        e.KILLED_OPPONENT: 1,
+        e.BOMB_DROPPED: 0.25,
+        e.BOMB_EXPLODED: 0,
+        e.MOVED_LEFT: 1,
+        e.MOVED_RIGHT: 1,
+        e.MOVED_UP: 1,
+        e.MOVED_DOWN: 1,
+        e.WAITED: -1,
+        e.INVALID_ACTION: -1,
+        e.TILE_VISITED: -1,
+        e.SURVIVED_ROUND: 2,
+        e.MOVED_TOWARDS_COIN: 2,
+        e.KILLED_SELF: -3,
+        e.CRATE_DESTROYED: 2,
+        e.COIN_FOUND: 2,
+        PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
+    }
+
+
+    if new_pos in visited_positions:
+        reward_ctr = -1 
+    else:
+        reward_ctr = 0
+
+    # DOWN
+    if state in [[0,0],[2,0],[5,0],[6,0],[7,0],[8,0],[10,3]]:
+        if new_pos[1]-pos[1] == 1:
+            reward_ctr += 0.5 
+        else:
+            reward_ctr -= 0.5 
+    # UP 
+    elif state in [[1,0],[3,0],[5,1],[6,1],[9,0],[7,2],[10,2]]:
+        if pos[1]-new_pos[1] == 1:
+            reward_ctr += 0.5 
+        else:
+            reward_ctr -= 0.5 
+    # RIGHT
+    elif state in [[2,1],[3,1],[4,1],[6,2],[8,2],[9,2],[10,0]]:
+        if new_pos[0]-pos[0] == 1:
+            reward_ctr += 0.5 
+        else:
+            reward_ctr -= 0.5 
+    # LEFT
+    elif state in [[0,1],[1,1],[4,0],[7,1],[8,1],[9,1],[10,1]]:
+        if pos[0]-new_pos[0] == 1:
+            reward_ctr += 0.5 
+        else:
+            reward_ctr -= 0.5 
+ 
+    if euclidean_distance(pos,target_coin) < euclidean_distance(new_pos,target_coin):
+        reward_ctr -= 1
+    else:
+        reward_ctr += 1
+
+    for event in events:
+        reward_ctr += game_rewards[event]
+    
+    return reward_ctr
+
 
 
 

@@ -30,19 +30,19 @@ def setup(self):
     self.visited_positions = []
     self.new_pos_history = []
 
-    self.value_estimates = np.zeros((11,50,6))
-    #self.value_estimates = np.zeros((11,50,4))
-    self.policy = np.zeros((11,50,6))
-    #self.policy = np.zeros((11,50,4))
+    #self.value_estimates = np.zeros((11,50,6))
+    self.value_estimates = np.zeros((11,50,4))
+    #self.policy = np.zeros((11,50,6))
+    self.policy = np.zeros((11,50,4))
     self.first_visit_check = []
 
     for i in range(11):
         for j in range(50):
-            self.policy[i,j] = [0.15,0.15,0.15,0.15,0.2,0.2] 
-            #for k in range(4):
+            #self.policy[i,j] = [0.15,0.15,0.15,0.15,0.2,0.2] 
+            for k in range(4):
             #for k in range(5):
                 #self.policy[i,j,k] = 0.2
-                #self.policy[i,j,k] = 0.25
+                self.policy[i,j,k] = 0.25
 
     self.return_val = np.zeros((11,50,6))
     self.return_ctr = np.zeros((11,50,6))   
@@ -83,21 +83,21 @@ def act(self, game_state: dict) -> str:
     """
     if game_state['round']>1 and self.train:
         state = extract_state(self,game_state,False)
-        #actions = ACTIONS[0:4]
-        actions = ACTIONS[0:6]
+        actions = ACTIONS[0:4]
+        #actions = ACTIONS[0:6]
         action = np.random.choice(actions, p = self.policy[state[0],state[1],:])
         return action
     # Initial policy
     elif game_state['round']==1 and self.train:
         # First level actions 
-        #actions = ACTIONS[0:4]
-        actions = ACTIONS[0:6]
-        #return np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
-        return np.random.choice(actions, p = [0.15,0.15,0.15,0.15,0.2,0.2])
+        actions = ACTIONS[0:4]
+        #actions = ACTIONS[0:6]
+        return np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
+        #return np.random.choice(actions, p = [0.15,0.15,0.15,0.15,0.2,0.2])
     else:
         state = extract_state(self,game_state,False)
-        #actions = ACTIONS[0:4]
-        actions = ACTIONS[0:6]
+        actions = ACTIONS[0:4]
+        #actions = ACTIONS[0:6]
         choosed_action = actions[np.argmax(self.policy[state[0],state[1],:])]
         return choosed_action
    
