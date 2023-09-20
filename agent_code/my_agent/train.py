@@ -60,11 +60,11 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     """# Idea: Add your own events to hand out rewards
     if ...:
         events.append(PLACEHOLDER_EVENT)"""
-    crates = []
+    """crates = []
     for x in range(17):
         for y in range(17):
             if old_game_state['field'][x,y] == 1:
-                crates.append((x,y))
+                crates.append((x,y))"""
 
     
 
@@ -73,8 +73,10 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     self.event_history.append(events)
     self.visited_positions.append(old_game_state['self'][3])
     self.new_pos_history.append(new_game_state['self'][3])
+    if 'COIN_COLLECTED' in events:
+        self.target_coin = (0,0)
 
-    sarsa(self,old_game_state,self_action,new_game_state,events)
+    #sarsa(self,old_game_state,self_action,new_game_state,events)
     
     #self.value_estimates = state_to_features(self.value_estimates,old_game_state, new_game_state)
     #trans = Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events))
@@ -96,28 +98,32 @@ def get_reward(self,crates,events,i):
     game_rewards = {
         e.COIN_COLLECTED: 1,
         e.KILLED_OPPONENT: 1,
-        e.BOMB_DROPPED: 0.25,
+        e.BOMB_DROPPED: -3,
         e.BOMB_EXPLODED: 0,
         e.MOVED_LEFT: 1,
         e.MOVED_RIGHT: 1,
         e.MOVED_UP: 1,
         e.MOVED_DOWN: 1,
-        e.WAITED: -1,
+        e.WAITED: -3,
         e.INVALID_ACTION: -1,
         e.TILE_VISITED: -1,
         e.SURVIVED_ROUND: 2,
         e.MOVED_TOWARDS_COIN: 2,
-        e.KILLED_SELF: -3,
+        e.KILLED_SELF: -10,
         e.CRATE_DESTROYED: 2,
         e.COIN_FOUND: 2,
+        e.GOT_KILLED:-10,
         PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
     }
 
+    #print(i," ",pos," ",new_pos)#," ",visited_positions)
 
     if new_pos in visited_positions:
         reward_ctr = -1 
     else:
         reward_ctr = 0
+
+    #print("Visited Position:", reward_ctr)
 
     # DOWN
     if state in [[0,0],[2,0],[5,0],[6,0],[7,0],[8,0],[10,3]]:
@@ -143,11 +149,15 @@ def get_reward(self,crates,events,i):
             reward_ctr += 0.5 
         else:
             reward_ctr -= 0.5 
- 
-    if euclidean_distance(pos,target_coin) < euclidean_distance(new_pos,target_coin):
-        reward_ctr -= 1
-    else:
-        reward_ctr += 1
+
+    #print("Moved in the right direction:", reward_ctr)
+    
+    if self.target_coin != (0,0):
+        if euclidean_distance(pos,target_coin) < euclidean_distance(new_pos,target_coin):
+            reward_ctr -= 1
+        else:
+            reward_ctr += 1
+        #print("Closer to target coin: reward_ctr")
 
     if timer != 0:#bomb_pos:    
 
@@ -165,18 +175,27 @@ def get_reward(self,crates,events,i):
         if right_pos in crates:
             reward_ctr+=1
 
+        """print("crates pos:",reward_ctr)
+
+        print("New Pos:", new_pos," Bomb Pos:",bomb_pos," Bomb Detected",bomb_deteced_pos)
+        print("Euclidean: ",euclidean_distance(new_pos,bomb_pos)," ",euclidean_distance(bomb_deteced_pos,bomb_pos))"""
+
+        #print("Avoid Ckeck:",avoid_check_(bomb_deteced_pos,new_pos,bomb_pos))
+
         new_pos_euclidean = euclidean_distance(new_pos,bomb_pos)
 
-        if euclidean_distance(bomb_deteced_pos,bomb_pos) <= new_pos_euclidean:
+        if euclidean_distance(bomb_deteced_pos,bomb_pos) >= new_pos_euclidean:
             reward_ctr -= 2
-        elif avoid_check_(bomb_deteced_pos,new_pos,bomb_pos):
-            reward_ctr += 5 
-        elif new_pos_euclidean > 1 and new_pos_euclidean <= 2:
+        #elif avoid_check_(bomb_deteced_pos,new_pos,bomb_pos):
+        #    reward_ctr += 5 
+        elif new_pos_euclidean >= 1 and new_pos_euclidean < 2 and new_pos != pos:
             reward_ctr += 3
-        elif new_pos_euclidean > 2 and new_pos_euclidean <= 3:
+        elif new_pos_euclidean >= 2 and new_pos_euclidean < 3 and new_pos != pos:
             reward_ctr += 4
-        else:
+        elif new_pos_euclidean >= 3 and new_pos != pos:
             reward_ctr += 5
+
+        #print("Moved away from bomb:",reward_ctr)
 
     for event in events:
         reward_ctr += game_rewards[event]
@@ -198,6 +217,12 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
     #self.transitions.append(Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events)))
 
+    self.state_history.append(extract_state(self,last_game_state,True))
+    self.action_history.append(last_action)
+    self.event_history.append(events)
+    self.visited_positions.append(last_game_state['self'][3])
+    self.new_pos_history.append(last_game_state['self'][3])
+
     crates = []
 
     for x in range(17):
@@ -206,7 +231,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
                 crates.append((x,y))
     # MC-Control for update value-function and policy 
     #mc_control(self,last_game_state,crates)
-    #mc_constant_alpha(self,last_game_state,crates)
+    mc_constant_alpha(self,last_game_state,crates)
 
     self.model = self.policy
 
@@ -328,11 +353,11 @@ def mc_constant_alpha(self,game_state,crates):
                 crates.remove(self.bomb_history[i])
             i+=1
 
-    if game_state['round'] < 500:
+    if game_state['round'] < 10000:
         epsilon = 0.5
-    elif game_state['round'] >= 500 and game_state['round'] < 1000:
+    elif game_state['round'] >= 10000 and game_state['round'] < 20000:
         epsilon = 0.4
-    elif game_state['round'] >= 1000 and game_state['round'] < 1500:
+    elif game_state['round'] >= 30000 and game_state['round'] < 40000:
         epsilon = 0.3
     else:
         epsilon = 0.2
@@ -369,8 +394,8 @@ def mc_constant_alpha(self,game_state,crates):
                 a_star = np.argmax(self.value_estimates[state[0],state[1],:])
 
                 # greedy 
-                #num_actions = 6
-                num_actions = 4
+                num_actions = 6
+                #num_actions = 4
                 for i in range(num_actions):
                     if i == a_star:
                         self.policy[state[0],state[1],i] = 1-epsilon+epsilon/num_actions 
