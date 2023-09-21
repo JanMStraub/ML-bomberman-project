@@ -166,7 +166,7 @@ def get_value(i):
 
 for x in range(11):
     print(" ")
-    for y in range(6):
+    for y in range(9):
         if get_value(np.argmax(policy[x,y])) in validation_array[x][y]:
             print(x," ",y," ",np.argmax(policy[x,y])," ",validation_array[x][y]," correct")
             ctr += 1
