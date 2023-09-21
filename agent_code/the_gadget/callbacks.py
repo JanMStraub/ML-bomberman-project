@@ -47,7 +47,8 @@ def setup(self):
             self.logger.warning(f"Saved model file '{model_file_path}' not found. Setting up model from scratch.")
 
 
-def act_random(self, game_state):
+def act_random(self,
+               game_state):
     self.logger.debug("Choosing action purely at random.")
     random_action = np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.1, 0.1])
     self.logger.debug(f"Random action: {random_action}")
@@ -55,7 +56,8 @@ def act_random(self, game_state):
     return random_action
 
 
-def act_learned(self, game_state):
+def act_learned(self,
+                game_state):
     self.logger.debug("Querying model for action.")
     game_state_tensor = torch.from_numpy(state_to_features(game_state)).float()
     action = ACTIONS[self.policy_net.forward(game_state_tensor).argmax().item()]
@@ -65,7 +67,8 @@ def act_learned(self, game_state):
     return action
 
 
-def act(self, game_state: dict) -> str:
+def act(self,
+        game_state: dict) -> str:
     """
     Your agent should parse the input, think, and take a decision.
     When not in training mode, the maximum execution time for this method is 0.5s.
@@ -136,7 +139,9 @@ def state_to_features(game_state: dict) -> np.array:
     return feature_matrix.reshape(-1)
 
 
-def choose_action(self, actions, game_state) -> dict:
+def choose_action(self,
+                  actions,
+                  game_state) -> dict:
     action_scores = actions.detach().numpy()
     sorted_actions = np.argsort(-action_scores)
     
