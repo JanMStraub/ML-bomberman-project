@@ -66,8 +66,6 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
             if old_game_state['field'][x,y] == 1:
                 crates.append((x,y))"""
 
-    
-
     self.state_history.append(extract_state(self,old_game_state,True))
     self.action_history.append(self_action)
     self.event_history.append(events)
@@ -84,13 +82,14 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     # state_to_features is defined in callbacks.py
     #self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
 
+
 def get_reward(self,crates,events,i):
 
     state = self.state_history[i]
     pos = self.visited_positions[i]
     visited_positions = self.visited_positions[:i]
     timer = self.bomb_timer_history[i]
-    bomb_deteced_pos = self.visited_positions[i-(3-timer)]
+    bomb_detected_pos = self.visited_positions[i-(3-timer)]
     new_pos = self.new_pos_history[i]
     target_coin = self.target_coins_history[i]
     bomb_pos = self.bomb_history[i]
@@ -117,88 +116,19 @@ def get_reward(self,crates,events,i):
     }
 
     #print(i," ",pos," ",new_pos)#," ",visited_positions)
-
-    if new_pos in visited_positions:
-        reward_ctr = -1 
-    else:
-        reward_ctr = 0
-
+    reward_ctr = move_handling(state,new_pos,pos,visited_positions)
     #print("Visited Position:", reward_ctr)
-
-    # DOWN
-    if state in [[0,0],[2,0],[5,0],[6,0],[7,0],[8,0],[10,3]]:
-        if new_pos[1]-pos[1] == 1:
-            reward_ctr += 0.5 
-        else:
-            reward_ctr -= 0.5 
-    # UP 
-    elif state in [[1,0],[3,0],[5,1],[6,1],[9,0],[7,2],[10,2]]:
-        if pos[1]-new_pos[1] == 1:
-            reward_ctr += 0.5 
-        else:
-            reward_ctr -= 0.5 
-    # RIGHT
-    elif state in [[2,1],[3,1],[4,1],[6,2],[8,2],[9,2],[10,0]]:
-        if new_pos[0]-pos[0] == 1:
-            reward_ctr += 0.5 
-        else:
-            reward_ctr -= 0.5 
-    # LEFT
-    elif state in [[0,1],[1,1],[4,0],[7,1],[8,1],[9,1],[10,1]]:
-        if pos[0]-new_pos[0] == 1:
-            reward_ctr += 0.5 
-        else:
-            reward_ctr -= 0.5 
-
     #print("Moved in the right direction:", reward_ctr)
-    
-    if self.target_coin != (0,0):
-        if euclidean_distance(pos,target_coin) < euclidean_distance(new_pos,target_coin):
-            reward_ctr -= 1
-        else:
-            reward_ctr += 1
-        #print("Closer to target coin: reward_ctr")
+    reward_ctr = coin_handling(reward_ctr,new_pos,pos,target_coin)
+    #print("Closer to target coin: reward_ctr")
+    if timer != 0:
+        reward_ctr = bomb_handling(reward_ctr,bomb_pos,crates,bomb_detected_pos,new_pos,pos)
 
-    if timer != 0:#bomb_pos:    
-
-        top_pos = (bomb_pos[0],bomb_pos[1]-1)
-        low_pos = (bomb_pos[0],bomb_pos[1]+1)
-        left_pos = (bomb_pos[0]-1,bomb_pos[1])
-        right_pos = (bomb_pos[0]+1,bomb_pos[1])
-
-        if top_pos in crates:
-            reward_ctr+=1
-        if low_pos in crates:
-            reward_ctr+=1
-        if left_pos in crates:
-            reward_ctr+=1
-        if right_pos in crates:
-            reward_ctr+=1
-
-        """print("crates pos:",reward_ctr)
-
-        print("New Pos:", new_pos," Bomb Pos:",bomb_pos," Bomb Detected",bomb_deteced_pos)
-        print("Euclidean: ",euclidean_distance(new_pos,bomb_pos)," ",euclidean_distance(bomb_deteced_pos,bomb_pos))"""
-
-        #print("Avoid Ckeck:",avoid_check_(bomb_deteced_pos,new_pos,bomb_pos))
-
-        new_pos_euclidean = euclidean_distance(new_pos,bomb_pos)
-
-        if euclidean_distance(bomb_deteced_pos,bomb_pos) >= new_pos_euclidean:
-            reward_ctr -= 2
-        #elif avoid_check_(bomb_deteced_pos,new_pos,bomb_pos):
-        #    reward_ctr += 5 
-        elif new_pos_euclidean >= 1 and new_pos_euclidean < 2 and new_pos != pos:
-            reward_ctr += 3
-        elif new_pos_euclidean >= 2 and new_pos_euclidean < 3 and new_pos != pos:
-            reward_ctr += 4
-        elif new_pos_euclidean >= 3 and new_pos != pos:
-            reward_ctr += 5
-
-        #print("Moved away from bomb:",reward_ctr)
-
-    for event in events:
-        reward_ctr += game_rewards[event]
+    if 'Killed_Self' in events:
+        reward_ctr -= 10
+    else:
+        for event in events:
+            reward_ctr += game_rewards[event]
     return reward_ctr
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -230,8 +160,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
             if last_game_state['field'][x,y] == 1:
                 crates.append((x,y))
     # MC-Control for update value-function and policy 
-    #mc_control(self,last_game_state,crates)
-    mc_constant_alpha(self,last_game_state,crates)
+    mc_control(self,last_game_state,crates)
+    #mc_constant_alpha(self,last_game_state,crates)
 
     self.model = self.policy
 
@@ -240,26 +170,117 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     with open("my-saved-model.pt", "wb") as file:
         pickle.dump(self.model, file)
 
-
-def reward_from_events(self, events: List[str]) -> int:
+def move_handling(state,new_pos,pos,visited_positions):
     """
-    *This is not a required function, but an idea to structure your code.*
-
-    Here you can modify the rewards your agent get so as to en/discourage
-    certain behavior.
+    Reward movement related events. 
     """
-    game_rewards = {
-        e.COIN_COLLECTED: 1,
-        e.KILLED_OPPONENT: 5,
-        PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
-    }
-    reward_sum = 0
-    for event in events:
-        if event in game_rewards:
-            reward_sum += game_rewards[event]
-    self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
-    return reward_sum
+    if new_pos in visited_positions:
+        reward_ctr = -1 
+    else:
+        reward_ctr = 0
 
+     # DOWN
+    if state in [[0,0],[2,0],[5,0],[6,0],[7,0],[8,0],[10,3]]:
+        if new_pos[1]-pos[1] == 1:
+            reward_ctr += 0.5 
+        else:
+            reward_ctr -= 0.5 
+    # UP 
+    elif state in [[1,0],[3,0],[5,1],[6,1],[9,0],[7,2],[10,2]]:
+        if pos[1]-new_pos[1] == 1:
+            reward_ctr += 0.5 
+        else:
+            reward_ctr -= 0.5 
+    # RIGHT
+    elif state in [[2,1],[3,1],[4,1],[6,2],[8,2],[9,2],[10,0]]:
+        if new_pos[0]-pos[0] == 1:
+            reward_ctr += 0.5 
+        else:
+            reward_ctr -= 0.5 
+    # LEFT
+    elif state in [[0,1],[1,1],[4,0],[7,1],[8,1],[9,1],[10,1]]:
+        if pos[0]-new_pos[0] == 1:
+            reward_ctr += 0.5 
+        else:
+            reward_ctr -= 0.5 
+
+    return reward_ctr
+
+def coin_handling(reward_ctr,new_pos,pos,target_coin):
+    if target_coin != (0,0):
+        if euclidean_distance(pos,target_coin) < euclidean_distance(new_pos,target_coin):
+            reward_ctr -= 1
+        else:
+            reward_ctr += 1
+    return reward_ctr
+
+def bomb_handling(reward_ctr,bomb_pos,crates,bomb_detected_pos,new_pos,pos):
+    """
+    Reward bomb related events. 
+    """
+    
+    reward_ctr = crate_handling(bomb_pos,reward_ctr,crates)
+    """print("crates pos:",reward_ctr)
+
+    print("New Pos:", new_pos," Bomb Pos:",bomb_pos," Bomb Detected",bomb_deteced_pos)
+    print("Euclidean: ",euclidean_distance(new_pos,bomb_pos)," ",euclidean_distance(bomb_deteced_pos,bomb_pos))"""
+
+    #print("Avoid Ckeck:",avoid_check_(bomb_deteced_pos,new_pos,bomb_pos))
+
+    new_pos_euclidean = euclidean_distance(new_pos,bomb_pos)
+
+    if euclidean_distance(bomb_detected_pos,bomb_pos) >= new_pos_euclidean:
+        reward_ctr -= 2
+    elif avoid_check_(new_pos,bomb_pos):
+        reward_ctr += 5 
+    elif new_pos_euclidean >= 1 and new_pos_euclidean < 2 and new_pos != pos:
+        reward_ctr += 3
+    elif new_pos_euclidean >= 2 and new_pos_euclidean < 3 and new_pos != pos:
+        reward_ctr += 4
+    elif new_pos_euclidean >= 3 and new_pos != pos:
+        reward_ctr += 5
+    return reward_ctr
+
+def crate_handling(bomb_pos,reward_ctr,crates):
+    """
+    Reward crate related events. 
+    """
+    top_pos = (bomb_pos[0],bomb_pos[1]-1)
+    low_pos = (bomb_pos[0],bomb_pos[1]+1)
+    left_pos = (bomb_pos[0]-1,bomb_pos[1])
+    right_pos = (bomb_pos[0]+1,bomb_pos[1])
+
+    if top_pos in crates:
+        reward_ctr+=1
+    if low_pos in crates:
+        reward_ctr+=1
+    if left_pos in crates:
+        reward_ctr+=1
+    if right_pos in crates:
+        reward_ctr+=1
+    return reward_ctr
+
+def enemy_handling():
+    """
+    Reward enemy related events. 
+    """
+    reward = 0 
+    return reward
+
+def reset_episode_arrays(self):
+    """
+    Reset the arrays of the last episode.
+    """
+    self.state_history = []
+    self.action_history = []
+    self.event_history = []
+    self.reward_history = []
+    self.visited_positions = []
+    self.new_pos_history = []
+    self.target_coin_history = []
+    self.bomb_history = []  
+    self.bomb_timer_history = []
+    self.first_visit_check = []
 
 def mc_control(self,game_state,crates):
     """
@@ -275,11 +296,11 @@ def mc_control(self,game_state,crates):
                 crates.remove(self.bomb_history[i])
             i+=1
 
-    if game_state['round'] < 500:
+    if game_state['round'] < 200:
         epsilon = 0.5
-    elif game_state['round'] >= 500 and game_state['round'] < 1000:
+    elif game_state['round'] >= 200 and game_state['round'] < 400:
         epsilon = 0.4
-    elif game_state['round'] >= 1000 and game_state['round'] < 1500:
+    elif game_state['round'] >= 400 and game_state['round'] < 600:
         epsilon = 0.3
     else:
         epsilon = 0.2
@@ -327,16 +348,7 @@ def mc_control(self,game_state,crates):
                         self.policy[state[0],state[1],i] = epsilon/num_actions 
             t+=1
     
-    self.state_history = []
-    self.action_history = []
-    self.event_history = []
-    self.reward_history = []
-    self.visited_positions = []
-    self.new_pos_history = []
-    self.target_coin_history = []
-    self.bomb_history = []  
-    self.bomb_timer_history = []
-    self.first_visit_check = []
+    reset_episode_arrays(self)
 
     return 0
 
@@ -353,11 +365,11 @@ def mc_constant_alpha(self,game_state,crates):
                 crates.remove(self.bomb_history[i])
             i+=1
 
-    if game_state['round'] < 10000:
+    if game_state['round'] < 200:
         epsilon = 0.5
-    elif game_state['round'] >= 10000 and game_state['round'] < 20000:
+    elif game_state['round'] >= 200 and game_state['round'] < 400:
         epsilon = 0.4
-    elif game_state['round'] >= 30000 and game_state['round'] < 40000:
+    elif game_state['round'] >= 400 and game_state['round'] < 600:
         epsilon = 0.3
     else:
         epsilon = 0.2
@@ -394,8 +406,8 @@ def mc_constant_alpha(self,game_state,crates):
                 a_star = np.argmax(self.value_estimates[state[0],state[1],:])
 
                 # greedy 
-                num_actions = 6
-                #num_actions = 4
+                #num_actions = 6
+                num_actions = 4
                 for i in range(num_actions):
                     if i == a_star:
                         self.policy[state[0],state[1],i] = 1-epsilon+epsilon/num_actions 
@@ -403,16 +415,7 @@ def mc_constant_alpha(self,game_state,crates):
                         self.policy[state[0],state[1],i] = epsilon/num_actions 
             t+=1
     
-    self.state_history = []
-    self.action_history = []
-    self.event_history = []
-    self.reward_history = []
-    self.visited_positions = []
-    self.new_pos_history = []
-    self.target_coin_history = []
-    self.bomb_history = []  
-    self.bomb_timer_history = []
-    self.first_visit_check = []
+    reset_episode_arrays(self)
 
     return 0
 
@@ -537,22 +540,12 @@ def euclidean_distance(coord1, coord2):
     distance = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
     return distance
 
-def avoid_check_(oldPos, newPos, bomb):
-    av_check = False 
-    if oldPos[0] == bomb[0]:
-        if newPos[0] == bomb[0]:
-            av_check = False 
-        else:
-            av_check = True       
-    elif oldPos[1] == bomb[1]:
-        if newPos[1] == bomb[1]:
-            av_check = False 
-        else:
-            av_check = True 
-    else:
+def avoid_check_(newPos, bomb):
+    if euclidean_distance(newPos,bomb)%1 != 0:
         av_check = True
-    
-    return av_check 
+    else:
+        av_check = False 
+    return av_check
 
 def get_state_return(disc,t,rewards):
 
