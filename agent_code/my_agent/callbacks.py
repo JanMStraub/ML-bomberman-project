@@ -39,11 +39,13 @@ def setup(self):
 
     for i in range(11):
         for j in range(50):
-            self.policy[i,j] = [0.15,0.15,0.15,0.15,0.2,0.2] 
+            self.policy[i,j] = [0.2,0.2,0.2,0.2,0.15,0.05] 
             #for k in range(4):
             #for k in range(5):
                 #self.policy[i,j,k] = 0.2
                 #self.policy[i,j,k] = 0.25
+
+    
 
     self.return_val = np.zeros((11,50,6))
     self.return_ctr = np.zeros((11,50,6))   
@@ -55,6 +57,8 @@ def setup(self):
     self.bomb = None
     self.bomb_history = []  
     self.bomb_timer_history = []
+
+    self.n_sarsa_ctr = 0
                     
 
     """with open("my-saved-model.pt", "rb") as file:
@@ -94,7 +98,7 @@ def act(self, game_state: dict) -> str:
         #actions = ACTIONS[0:4]
         actions = ACTIONS[0:6]
         #return np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
-        return np.random.choice(actions, p = [0.2,0.2,0.2,0.2,0.1,0.1])
+        return np.random.choice(actions, p = [0.2,0.2,0.2,0.2,0.2,0.0])
     else:
         state = extract_state(self,game_state,False)
         #actions = ACTIONS[0:4]
@@ -504,7 +508,7 @@ def extract_state(self,old_game_state,train):
         # Crate 
         # Expect: BOMB
         elif field_map[left_pos] == 1 or field_map[low_pos] == 1 or field_map[right_pos] == 1:
-            state = [8,16] 
+            state = [8,10] 
 
         # Coin radar
         # Expect: RIGHT
