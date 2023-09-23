@@ -60,11 +60,12 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     """# Idea: Add your own events to hand out rewards
     if ...:
         events.append(PLACEHOLDER_EVENT)"""
-    crates = []
+   
+    """
     for x in range(17):
         for y in range(17):
             if old_game_state['field'][x,y] == 1:
-                crates.append((x,y))
+                crates.append((x,y))"""
 
     self.state_history.append(extract_state(self,old_game_state,True))
     self.action_history.append(self_action)
@@ -75,9 +76,9 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         self.target_coin = (0,0)
 
 
-
+    crates = []
     self.n_sarsa_ctr+=1
-    if self.n_sarsa_ctr == 4:
+    if self.n_sarsa_ctr == 3:
         mc_constant_alpha(self,old_game_state,crates)
         #mc_control(self,old_game_state,crates)
         self.n_sarsa_ctr = 0
@@ -93,7 +94,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     #self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
 
 
-def get_reward(self,crates,events,i):
+def get_reward(self,crates,events,i,game_state):
 
     state = self.state_history[i]
     pos = self.visited_positions[i]
@@ -116,8 +117,8 @@ def get_reward(self,crates,events,i):
         e.MOVED_RIGHT: 1,
         e.MOVED_UP: 1,
         e.MOVED_DOWN: 1,
-        e.WAITED: -1,
-        e.INVALID_ACTION: -2,
+        e.WAITED: -3,
+        e.INVALID_ACTION: -4,
         e.TILE_VISITED: -1,
         e.SURVIVED_ROUND: 2,
         e.MOVED_TOWARDS_COIN: 2,
@@ -135,7 +136,7 @@ def get_reward(self,crates,events,i):
     reward_ctr = coin_handling(reward_ctr,new_pos,pos,target_coin)
     #print("Closer to target coin: reward_ctr")
     if 'BOMB_DROPPED' in events or timer != 0:
-        reward_ctr = bomb_handling(reward_ctr,bomb_pos,crates,bomb_detected_pos,new_pos,pos,events,state)
+        reward_ctr = bomb_handling(reward_ctr,bomb_pos,crates,bomb_detected_pos,new_pos,pos,events,state,game_state)
 
     """if 'KILLED_SELF' in events:
         reward_ctr -= 10
@@ -232,12 +233,12 @@ def coin_handling(reward_ctr,new_pos,pos,target_coin):
             reward_ctr += 1
     return reward_ctr
 
-def bomb_handling(reward_ctr,bomb_pos,crates,bomb_detected_pos,new_pos,pos,events,state):
+def bomb_handling(reward_ctr,bomb_pos,crates,bomb_detected_pos,new_pos,pos,events,state,game_state):
     """
     Reward bomb related events. 
     """
     if 'BOMB_DROPPED' in events: 
-        reward_ctr = crate_handling(pos,reward_ctr,crates)
+        reward_ctr = crate_handling(pos,reward_ctr,crates,game_state)
         bomb_pos = pos 
 
         # DOWN
@@ -279,7 +280,7 @@ def bomb_handling(reward_ctr,bomb_pos,crates,bomb_detected_pos,new_pos,pos,event
         reward_ctr += 5
     return reward_ctr
 
-def crate_handling(bomb_pos,reward_ctr,crates):
+def crate_handling(bomb_pos,reward_ctr,crates,game_state):
     """
     Reward crate related events. 
     """
@@ -288,14 +289,15 @@ def crate_handling(bomb_pos,reward_ctr,crates):
     left_pos = (bomb_pos[0]-1,bomb_pos[1])
     right_pos = (bomb_pos[0]+1,bomb_pos[1])
 
-    if top_pos in crates:
+    if game_state['field'][top_pos] == 1:
         reward_ctr+=1
-    if low_pos in crates:
+    if game_state['field'][low_pos] == 1:
         reward_ctr+=1
-    if left_pos in crates:
+    if game_state['field'][left_pos] == 1:
         reward_ctr+=1
-    if right_pos in crates:
+    if game_state['field'][right_pos] == 1:
         reward_ctr+=1
+
     return reward_ctr
 
 def enemy_handling():
@@ -407,23 +409,8 @@ def mc_constant_alpha(self,game_state,crates):
     """
     i = 0 
     for event in self.event_history: 
-            self.reward_history.append(get_reward(self,crates,event,i))
-            if self.bomb_history[i] is not None:
-                top_pos = (self.bomb_history[i][0],self.bomb_history[i][1]-1)
-                low_pos = (self.bomb_history[i][0],self.bomb_history[i][1]+1)
-                left_pos = (self.bomb_history[i][0]-1,self.bomb_history[i][1])
-                right_pos = (self.bomb_history[i][0]+1,self.bomb_history[i][1])
-                        
-                if top_pos in crates:
-                    crates.remove(top_pos)
-                if low_pos in crates:
-                    crates.remove(low_pos)
-                if left_pos in crates:
-                    crates.remove(left_pos)
-                if top_pos in crates:
-                    crates.remove(right_pos)
-
-            i+=1
+        self.reward_history.append(get_reward(self,crates,event,i,game_state))
+        i+=1
 
     if game_state['round'] < 10000:
         epsilon = 0.5
@@ -438,42 +425,37 @@ def mc_constant_alpha(self,game_state,crates):
     disc= 0.95 
     alpha = 0.1
     for state in self.state_history:
-            
-        #while t < len(self.state_history)-1: ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
-            if self.action_history[t] == 'UP':
-                action = 0
-            elif self.action_history[t] == 'RIGHT':
-                action = 1 
-            elif self.action_history[t] == 'DOWN':
-                action = 2
-            elif self.action_history[t] == 'LEFT':
-                action = 3
-            elif self.action_history[t] == 'WAIT':
-                action = 4
-            else:
-                action = 5
+        if self.action_history[t] == 'UP':
+            action = 0
+        elif self.action_history[t] == 'RIGHT':
+            action = 1 
+        elif self.action_history[t] == 'DOWN':
+            action = 2
+        elif self.action_history[t] == 'LEFT':
+            action = 3
+        elif self.action_history[t] == 'WAIT':
+            action = 4
+        else:
+            action = 5
 
-            #if state == [1,0]:
-            #    print(self.action_history[t])
+        #if state == [1,0]:
+        #    print(self.action_history[t])
 
-            if True:#(state,action) not in self.first_visit_check:
-                self.first_visit_check.append((state,action))
-                #g = pow(gamma,t) * g + self.reward_history[t]
-                #g += self.reward_history[t]
-                g = get_state_return(disc,t,self.reward_history[t:])
+        if True:#(state,action) not in self.first_visit_check:
+            self.first_visit_check.append((state,action))
+            g = get_state_return(disc,t,self.reward_history[t:])
 
-                self.value_estimates[state[0],state[1],action] += alpha*(g-self.value_estimates[state[0],state[1],action]) 
-                a_star = np.argmax(self.value_estimates[state[0],state[1],:])
+            self.value_estimates[state[0],state[1],action] += alpha*(g-self.value_estimates[state[0],state[1],action]) 
+            a_star = np.argmax(self.value_estimates[state[0],state[1],:])
 
-                # greedy 
-                num_actions = 6
-                #num_actions = 4
-                for i in range(num_actions):
-                    if i == a_star:
-                        self.policy[state[0],state[1],i] = 1-epsilon+epsilon/num_actions 
-                    else:
-                        self.policy[state[0],state[1],i] = epsilon/num_actions 
-            t+=1
+            # greedy 
+            num_actions = 6
+            for i in range(num_actions):
+                if i == a_star:
+                    self.policy[state[0],state[1],i] = 1-epsilon+epsilon/num_actions 
+                else:
+                    self.policy[state[0],state[1],i] = epsilon/num_actions 
+        t+=1
     
     reset_episode_arrays(self)
 
