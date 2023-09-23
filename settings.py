@@ -14,7 +14,7 @@ SCENARIOS = {
         "COIN_COUNT": 0 
     },
     "coin-heaven": {
-        "CRATE_DENSITY": 0.1,
+        "CRATE_DENSITY": 0.3,
         "COIN_COUNT": 50
     },
     "loot-crate": { 

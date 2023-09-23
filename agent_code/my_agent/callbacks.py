@@ -31,14 +31,16 @@ def setup(self):
     self.new_pos_history = []
     self.reward_debug_history = []
 
-    self.value_estimates = np.zeros((11,50,6))
+    #self.value_estimates = np.zeros((11,50,6))
     #self.value_estimates = np.zeros((11,50,4))
-    self.policy = np.zeros((11,50,6))
+    self.value_estimates = np.zeros((4,8,6))
+    #self.policy = np.zeros((11,50,6))
     #self.policy = np.zeros((11,50,4))
+    self.policy = np.zeros((4,8,6))
     self.first_visit_check = []
 
-    for i in range(11):
-        for j in range(50):
+    for i in range(4):
+        for j in range(8):
             self.policy[i,j] = [0.2,0.2,0.2,0.2,0.15,0.05] 
             #for k in range(4):
             #for k in range(5):
@@ -50,8 +52,10 @@ def setup(self):
     self.return_val = np.zeros((11,50,6))
     self.return_ctr = np.zeros((11,50,6))   
 
-    self.target_coin = (0,0)     
+    self.target_coin = (0,0)  
+    self.target_crate = (0,0)     
     self.target_coins_history = []   
+    self.target_crates_history = []
 
     self.bomb_detect_pos = None 
     self.bomb = None
@@ -87,7 +91,8 @@ def act(self, game_state: dict) -> str:
     :return: The action to take as a string.
     """
     if game_state['round']>1 and self.train:
-        state = extract_state(self,game_state,False)
+        state = states(self,game_state,False)
+        #state = extract_state(self,game_state,False)
         #actions = ACTIONS[0:4]
         actions = ACTIONS[0:6]
         action = np.random.choice(actions, p = self.policy[state[0],state[1],:])
@@ -100,7 +105,9 @@ def act(self, game_state: dict) -> str:
         #return np.random.choice(actions, p = [0.25,0.25,0.25,0.25])
         return np.random.choice(actions, p = [0.2,0.2,0.2,0.2,0.2,0.0])
     else:
-        state = extract_state(self,game_state,False)
+        state = states(self,game_state,False)
+        self.visited_positions(game_state['self'][3])
+        #state = extract_state(self,game_state,False)
         #actions = ACTIONS[0:4]
         actions = ACTIONS[0:6]
         choosed_action = actions[np.argmax(self.policy[state[0],state[1],:])]
@@ -643,6 +650,152 @@ def extract_state(self,old_game_state,train):
 
     return state 
 
+def states(self,old_game_state,train):
+    """
+    First level for collecting coins has 11 different states which describe 
+    the neighbourhood of the current agent position
+    """
+
+    # Check environment
+    pos = old_game_state['self'][3]
+    field_map = old_game_state['field']
+
+    left_radar = [(x,pos[1]) for x in range(pos[0],pos[0]-4,-1)]
+    right_radar = [(x,pos[1]) for x in range(pos[0],pos[0]+4,1)]
+    top_radar = [(pos[0],y) for y in range(pos[1],pos[1]-4,-1)]
+    down_radar = [(pos[0],y) for y in range(pos[1],pos[1]+4,1)]
+
+    # Get bomb locations
+    bombs = ([x for (x,y) in old_game_state['bombs']])
+    timer = ([t for (x,t) in old_game_state['bombs']])
+
+    # Get Crate locations 
+    crates = []
+    walls = []
+    for x in range(17):
+        for y in range(17):
+            if old_game_state['field'][x,y] == 1:
+                crates.append((x,y))
+            elif old_game_state['field'][x,y] == -1:
+                walls.append((x,y))
+
+    neighbourhood = []
+
+    left = (pos[0]-1,pos[1])
+    right = (pos[0]+1,pos[1])
+    top = (pos[0],pos[1]-1)
+    down = (pos[0],pos[1]+1)
+    """
+    left = field_map[left]
+    right = field_map[left]
+    top = field_map[left]
+    down = field_map[left]
+    
+    neighbourhood.append(left)
+    neighbourhood.append(right)
+    neighbourhood.append(top)
+    neighbourhood.append(down)"""
+
+
+    # Bomb altert 
+    if bomb_radar(self,left_radar,bombs,train) or bomb_radar(self,right_radar,bombs,train)\
+        or bomb_radar(self,top_radar,bombs,train) or bomb_radar(self,down_radar,bombs,train):
+        main_state = 'Bomb'
+
+        # Agent altert 
+        """elif agent_radar():
+        state = 'Agent'"""
+
+    # Coin altert 
+    elif coin_radar(self,left_radar,old_game_state['coins'],train) or coin_radar(self,right_radar,old_game_state['coins'],train)\
+        or coin_radar(self,top_radar,old_game_state['coins'],train) or coin_radar(self,down_radar,old_game_state['coins'],train):
+        main_state = 'Coin'
+    # Crate altert
+    elif crate_radar(self,left_radar,crates,train) or crate_radar(self,right_radar,crates,train)\
+        or crate_radar(self,top_radar,crates,train) or crate_radar(self,down_radar,crates,train):
+        main_state = 'Crate'
+    # Exploring 
+    else:
+        main_state = 'Explore'
+
+
+    if main_state == 'Bomb':
+        if not wall_radar(self,top_radar,walls,train) and not crate_radar(self,top_radar,crates,train):
+            state = [0,0]
+        elif not wall_radar(self,right_radar,walls,train) and not crate_radar(self,right_radar,crates,train):
+            state = [0,1]
+        elif not wall_radar(self,down_radar,walls,train) and not crate_radar(self,down_radar,crates,train):
+            state = [0,2]
+        elif not wall_radar(self,left_radar,walls,train) and not crate_radar(self,left_radar,crates,train):
+            state = [0,3]
+        else:
+            state = [1,7]
+
+    elif main_state == 'Coin':
+        if coin_radar(self,top_radar,old_game_state['coins'],train):
+            state = [1,0]
+        elif coin_radar(self,right_radar,old_game_state['coins'],train):
+            state = [1,1]
+        elif coin_radar(self,down_radar,old_game_state['coins'],train):
+            state = [1,2]
+        elif coin_radar(self,left_radar,old_game_state['coins'],train):
+            state = [1,3]
+        else:
+            state = [1,7]
+
+    elif main_state == 'Crate':
+        if left in crates or right in crates or top in crates or down in crates:
+            state = [2,0]
+        elif crate_radar(self,top_radar,crates,train):
+            state = [2,1]
+        elif crate_radar(self,right_radar,crates,train):
+            state = [2,2]
+        elif crate_radar(self,down_radar,crates,train):
+            state = [2,3]
+        elif crate_radar(self,left_radar,crates,train):
+            state = [2,4]
+        else:
+            state = [1,7]
+    # add not visited to walls
+    elif main_state == 'Explore':
+        if not wall_radar(self,top_radar,walls+self.visited_positions,train):
+            state = [3,0]
+        elif not wall_radar(self,right_radar,walls+self.visited_positions,train):
+            state = [3,1]
+        elif not wall_radar(self,down_radar,walls+self.visited_positions,train):
+            state = [3,2]
+        elif not wall_radar(self,left_radar,walls+self.visited_positions,train):
+            state = [3,3]
+        elif top not in walls+self.visited_positions:
+            state = [3,4]
+        elif right not in walls+self.visited_positions:
+            state = [3,5]
+        elif down not in walls+self.visited_positions:
+            state = [3,6]
+        elif left not in walls+self.visited_positions:
+            state = [3,7]
+        else:
+            state = [1,7]
+        
+
+
+    if train:
+        self.target_coins_history.append(self.target_coin)
+        self.target_crates_history.append(self.target_crate)
+        self.bomb_history.append(self.bomb)
+        
+        index = None
+        if self.bomb:
+            if bombs:
+                index = bombs.index(self.bomb)
+                self.bomb_timer_history.append(timer[index])
+            else:
+                self.bomb_timer_history.append(0)
+        else:
+            self.bomb_timer_history.append(0)
+
+    return state 
+
 
 def coin_radar(self,radar,coin,train):
     for location in radar:
@@ -657,5 +810,21 @@ def bomb_radar(self,radar,bombs,train):
         if location in bombs:
             if train:
                 self.bomb = location
+            return True
+    return False
+
+def crate_radar(self,radar,crates,train):
+    for location in radar:
+        if location in crates:
+            if train:
+                self.target_crate = location
+            return True
+    return False
+
+def wall_radar(self,radar,crates,train):
+    for location in radar:
+        if location in crates:
+            #if train:
+                #self.target_coin = location
             return True
     return False

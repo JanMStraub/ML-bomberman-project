@@ -4,7 +4,7 @@ import pickle
 from typing import List
 
 import events as e
-from .callbacks import state_to_features, extract_state
+from .callbacks import state_to_features, extract_state,states
 
 import numpy as np
 
@@ -67,7 +67,8 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
             if old_game_state['field'][x,y] == 1:
                 crates.append((x,y))"""
 
-    self.state_history.append(extract_state(self,old_game_state,True))
+    #self.state_history.append(extract_state(self,old_game_state,True))
+    self.state_history.append(states(self,old_game_state,True))
     self.action_history.append(self_action)
     self.event_history.append(events)
     self.visited_positions.append(old_game_state['self'][3])
@@ -75,12 +76,18 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     if 'COIN_COLLECTED' in events:
         self.target_coin = (0,0)
 
+    if 'CRATE_DESTROYED' in events:
+        self.target_crate = (0,0)
+
 
     crates = []
     self.n_sarsa_ctr+=1
     if self.n_sarsa_ctr == 3:
         mc_constant_alpha(self,old_game_state,crates)
         #mc_control(self,old_game_state,crates)
+        self.target_coins_history = []
+        self.target_crates_history =[]
+        self.bomb_history = []
         self.n_sarsa_ctr = 0
 
     
@@ -106,6 +113,7 @@ def get_reward(self,crates,events,i,game_state):
         bomb_detected_pos = self.visited_positions[i]
     new_pos = self.new_pos_history[i]
     target_coin = self.target_coins_history[i]
+    target_crate = self.target_crates_history[i]
     bomb_pos = self.bomb_history[i]
     
     game_rewards = {
@@ -117,8 +125,8 @@ def get_reward(self,crates,events,i,game_state):
         e.MOVED_RIGHT: 1,
         e.MOVED_UP: 1,
         e.MOVED_DOWN: 1,
-        e.WAITED: -3,
-        e.INVALID_ACTION: -4,
+        e.WAITED: -6,
+        e.INVALID_ACTION: -6,
         e.TILE_VISITED: -1,
         e.SURVIVED_ROUND: 2,
         e.MOVED_TOWARDS_COIN: 2,
@@ -134,6 +142,7 @@ def get_reward(self,crates,events,i,game_state):
     #print("Visited Position:", reward_ctr)
     #print("Moved in the right direction:", reward_ctr)
     reward_ctr = coin_handling(reward_ctr,new_pos,pos,target_coin)
+    reward_ctr =  crate_handling(reward_ctr,target_crate,pos,new_pos)
     #print("Closer to target coin: reward_ctr")
     if 'BOMB_DROPPED' in events or timer != 0:
         reward_ctr = bomb_handling(reward_ctr,bomb_pos,crates,bomb_detected_pos,new_pos,pos,events,state,game_state)
@@ -162,7 +171,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
     #self.transitions.append(Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events)))
 
-    self.state_history.append(extract_state(self,last_game_state,True))
+    #self.state_history.append(extract_state(self,last_game_state,True))
+    self.state_history.append(states(self,last_game_state,True))
     self.action_history.append(last_action)
     self.event_history.append(events)
     self.visited_positions.append(last_game_state['self'][3])
@@ -189,9 +199,9 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     with open("my-saved-model.pt", "wb") as file:
         pickle.dump(self.model, file)
 
-def move_handling(state,new_pos,pos,visited_positions):
+    """def move_handling(state,new_pos,pos,visited_positions):
     """
-    Reward movement related events. 
+    #Reward movement related events. 
     """
     if new_pos in visited_positions:
         reward_ctr = -1 
@@ -223,6 +233,42 @@ def move_handling(state,new_pos,pos,visited_positions):
         else:
             reward_ctr -= 0 
 
+    return reward_ctr"""
+
+def move_handling(state,new_pos,pos,visited_positions):
+    """
+    Reward movement related events. 
+    """
+    if new_pos in visited_positions:
+        reward_ctr = -1 
+    else:
+        reward_ctr = 0
+
+     # DOWN
+    if state in [[0,2],[1,2],[2,3],[3,2]]:
+        if new_pos[1]-pos[1] == 1:
+            reward_ctr += 1 
+        else:
+            reward_ctr -= 0
+    # UP 
+    elif state in [[0,0],[1,0],[2,1],[3,0]]:
+        if pos[1]-new_pos[1] == 1:
+            reward_ctr += 1 
+        else:
+            reward_ctr -= 0
+    # RIGHT
+    elif state in [[0,1],[1,1],[2,2],[3,1]]:
+        if new_pos[0]-pos[0] == 1:
+            reward_ctr += 1 
+        else:
+            reward_ctr -= 0 
+    # LEFT
+    elif state in [[0,3],[1,3],[2,4],[3,4]]:
+        if pos[0]-new_pos[0] == 1:
+            reward_ctr += 1
+        else:
+            reward_ctr -= 0 
+
     return reward_ctr
 
 def coin_handling(reward_ctr,new_pos,pos,target_coin):
@@ -238,11 +284,14 @@ def bomb_handling(reward_ctr,bomb_pos,crates,bomb_detected_pos,new_pos,pos,event
     Reward bomb related events. 
     """
     if 'BOMB_DROPPED' in events: 
-        reward_ctr = crate_handling(pos,reward_ctr,crates,game_state)
+        #reward_ctr = crate_handling(pos,reward_ctr,crates,game_state)
+        if state == [2,0]:
+            reward_ctr+=2
+        else:
+            reward_ctr-=2
         bomb_pos = pos 
 
-        # DOWN
-        if state in [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[0,6],\
+        """if state in [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[0,6],\
                      [1,0],[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],\
                      [2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[2,6],\
                      [3,0],[3,1],[3,2],[3,3],[3,4],[3,5],[3,6],\
@@ -255,9 +304,9 @@ def bomb_handling(reward_ctr,bomb_pos,crates,bomb_detected_pos,new_pos,pos,event
                      [10,0],[10,1],[10,2],[10,3],[10,4],[10,5],[10,6],[10,7],
                      [10,8],[10,9],[10,10],[10,11],[10,12]]:
             reward_ctr -= 2
-        elif state in [[0,7],[1,7],[2,7],[3,7],[4,7],[5,7],[6,10],[7,10],[8,10],\
-                       [9,10],[10,13]]:
-            reward_ctr += 2
+
+        # DOWN
+        """
             
 
     """print("crates pos:",reward_ctr)
@@ -280,11 +329,17 @@ def bomb_handling(reward_ctr,bomb_pos,crates,bomb_detected_pos,new_pos,pos,event
         reward_ctr += 5
     return reward_ctr
 
-def crate_handling(bomb_pos,reward_ctr,crates,game_state):
+def crate_handling(reward_ctr,target_crate,pos,new_pos):
     """
     Reward crate related events. 
     """
-    top_pos = (bomb_pos[0],bomb_pos[1]-1)
+    if target_crate != (0,0):
+        if euclidean_distance(pos,target_crate) <= euclidean_distance(new_pos,target_crate):
+            reward_ctr -= 1
+        else:
+            reward_ctr += 1
+    return reward_ctr
+    """top_pos = (bomb_pos[0],bomb_pos[1]-1)
     low_pos = (bomb_pos[0],bomb_pos[1]+1)
     left_pos = (bomb_pos[0]-1,bomb_pos[1])
     right_pos = (bomb_pos[0]+1,bomb_pos[1])
@@ -298,7 +353,7 @@ def crate_handling(bomb_pos,reward_ctr,crates,game_state):
     if game_state['field'][right_pos] == 1:
         reward_ctr+=1
 
-    return reward_ctr
+    return reward_ctr"""
 
 def enemy_handling():
     """
@@ -412,14 +467,14 @@ def mc_constant_alpha(self,game_state,crates):
         self.reward_history.append(get_reward(self,crates,event,i,game_state))
         i+=1
 
-    if game_state['round'] < 10000:
-        epsilon = 0.5
-    elif game_state['round'] >= 10000 and game_state['round'] < 25000:
+    if game_state['round'] < 20000:
         epsilon = 0.4
-    elif game_state['round'] >= 25000 and game_state['round'] < 38000:
+    elif game_state['round'] >= 20000 and game_state['round'] < 40000:
         epsilon = 0.3
-    else:
+    elif game_state['round'] >= 45000 and game_state['round'] < 60000:
         epsilon = 0.2
+    else:
+        epsilon = 0.1
     g = 0 
     t = 0
     disc= 0.95 
