@@ -6,12 +6,12 @@ import math
 import numpy as np
 import torch
 
-from .helper import action_filter, calculate_blast_radius
+from .helper import calculate_blast_radius
 from settings import BOMB_POWER
 
 EPS_START = 0.90
 EPS_END = 0.05
-EPS_DECAY = 200
+EPS_DECAY = 100
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 
@@ -50,7 +50,7 @@ def setup(self):
 def act_random(self,
                game_state):
     self.logger.debug("Choosing action purely at random.")
-    random_action = np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.1, 0.1])
+    random_action = np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.05, 0.15])
     self.logger.debug(f"Random action: {random_action}")
     
     return random_action
@@ -79,7 +79,8 @@ def act(self,
     """
 
     if self.train:
-        random_prob = EPS_END + (EPS_START - EPS_END) * math.exp(-1.0 * game_state["step"] / EPS_DECAY)
+        random_prob = EPS_END + (EPS_START - EPS_END) * \
+            math.exp(-1.0 * game_state["step"] / EPS_DECAY)
 
         if random.random() > random_prob:
             return act_random(self, game_state)
@@ -111,7 +112,8 @@ def state_to_features(game_state: dict) -> np.array:
     }
 
     # Create an array of ones with the same shape as the game field
-    feature_matrix = np.ones_like(game_state["field"], dtype=np.int)
+    feature_matrix = np.ones_like(game_state["field"],
+                                  dtype=np.int)
 
     # Map cell types to their corresponding values
     for cell_type, value in cell_mappings.items():
@@ -128,7 +130,9 @@ def state_to_features(game_state: dict) -> np.array:
 
     if game_state["bombs"]:
         # Set bomb positions
-        bomb_positions = np.array([bomb for bomb in calculate_blast_radius(game_state, BOMB_POWER)])
+        bomb_positions = np.array(
+            [bomb for bomb in calculate_blast_radius(game_state,
+                                                     BOMB_POWER)])
         feature_matrix[bomb_positions[:, 0], bomb_positions[:, 1]] = 4
     
     if game_state["others"]:
@@ -137,23 +141,3 @@ def state_to_features(game_state: dict) -> np.array:
         feature_matrix[other_positions[:, 0], other_positions[:, 1]] = 5
 
     return feature_matrix.reshape(-1)
-
-
-def choose_action(self,
-                  actions,
-                  game_state) -> dict:
-    action_scores = actions.detach().numpy()
-    sorted_actions = np.argsort(-action_scores)
-    
-    print(action_scores)
-    print(sorted_actions)
-
-    # Choose the best valid action from the sorted list
-    for action_idx in sorted_actions:
-        action = ACTIONS[action_idx]
-        print(action)
-        if action in action_filter(self, game_state):
-            return action
-
-    # If no valid action is found, return default action
-    return "WAIT"

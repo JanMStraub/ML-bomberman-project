@@ -9,7 +9,7 @@ from torch import nn
 
 class DQN(nn.Module):
     """
-    Deep Q Learning model class.
+    Deep Q Learning network class.
     """
 
     def __init__(self,

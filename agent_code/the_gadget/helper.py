@@ -5,46 +5,60 @@ Reinforcement Learning agent for the game Bomberman.
 @author: Christian Teutsch, Jan Straub
 """
 
-import random
-
 from math import dist
-from collections import deque
 
-# UNUSED
-def action_filter(self,
-                  game_state):
+
+def movement_action_reward(old_game_state,
+                           new_game_state,
+                           action):
     """
-    Function filters the action list.
+    Rewards movement according to the map.
     """
-    # Get the current position of your agent
-    x, y = game_state['self'][3]
+    x, y = old_game_state["self"][3]
+    adjacent_positions = [(x, y + 1), (x, y - 1), (x + 1, y), (x - 1, y)]
 
-    # Define a list of adjacent positions and corresponding actions
-    adjacent_positions = [(x, y + 1), (x + 1, y), (x, y - 1), (x - 1, y)]
-    valid_actions = ['DOWN', 'RIGHT', 'UP', 'LEFT']
+    action_to_position = {
+        "DOWN": 0,
+        "UP": 1,
+        "LEFT": 2,
+        "RIGHT": 3,
+    }
+    
+    position_index = action_to_position.get(action, None)
 
-    # Initialize an empty queue to store possible actions
-    action_queue = deque()
+    if position_index is not None:
+        if new_game_state["field"][adjacent_positions[position_index]] == 0:
+            return True
+    
+    return False
 
-    # Check each adjacent position
-    for position, action in zip(adjacent_positions, valid_actions):
-        # If the position is empty (contains a 0 in the field) and has
-        # not been visited before, add the action to the queue
-        # of possible actions
-        if game_state["field"][position] == 0:
-            if position not in self.visited_tiles:
-                action_queue.append(action)
 
-    # Add the current position to the list of visited tiles
-    self.visited_tiles.append((x, y))
+def bomb_action_reward(old_game_state,
+                       new_game_state,
+                       action):
+    old_agent_position = old_game_state["self"][3]
+    x, y = old_agent_position
+    adjacent_positions = [(x, y + 1), (x, y - 1), (x + 1, y), (x - 1, y)]
 
-    if not action_queue:
-        # If the queue is empty, return a randomly chosen action from valid_actions
-        self.logger.debug("Random action")
-        return [random.choice(valid_actions)]
+    for position in adjacent_positions:
+        if new_game_state["field"][position] == 1 and action == "BOMB":
+            return True
 
-    # Return the queue of possible actions
-    return list(action_queue)
+    return False
+
+
+def bomb_start_action_reward(old_game_state,
+                             new_game_state):
+    """
+    Checks wether the bomb is planted in the start position.
+    """
+    x, y = old_game_state["self"][3]
+    start_positions = [(1, 1), (1, 15), (15, 1), (15, 15)]
+
+    if (x, y) in start_positions and new_game_state["step"] < 5:
+        return True
+
+    return False
 
 
 def check_danger_zone(game_state,
@@ -101,6 +115,7 @@ def check_danger_zone(game_state,
     return False
 
 
+# TODO blast radius is still deadly 1 step after timer is 0
 def calculate_blast_radius(game_state,
                            blast_radius):
     """
@@ -108,35 +123,35 @@ def calculate_blast_radius(game_state,
     """
     # Initialize an empty list to store positions in the danger zone
     danger_zone = []
-
     # Iterate through each bomb in the game state
     for (x, y), timer in game_state["bombs"]:
         # Add the bomb's position to the danger zone list
-        danger_zone.append((x, y))
+        if (x, y) not in danger_zone:
+            danger_zone.append((x, y))
 
-        # Iterate in all four possible directions (up, down, left, right)
-        for i in range(1, blast_radius + 1):
-            # Check positions in the horizontal (x-axis) direction
-            if x + i < game_state["field"].shape[0]:
-                if game_state["field"][x + i, y] != -1:
-                    # Add positions within blast radius
-                    danger_zone.append((x + i, y))
+            # Iterate in all four possible directions (up, down, left, right)
+            for i in range(1, blast_radius + 1):
+                # Check positions in the horizontal (x-axis) direction
+                if x + i < game_state["field"].shape[0]:
+                    if game_state["field"][x + i, y] != -1:
+                        # Add positions within blast radius
+                        danger_zone.append((x + i, y))
 
-            if x - i >= 0:
-                if game_state["field"][x - i, y] != -1:
-                    # Add positions within blast radius
-                    danger_zone.append((x - i, y))
+                if x - i >= 0:
+                    if game_state["field"][x - i, y] != -1:
+                        # Add positions within blast radius
+                        danger_zone.append((x - i, y))
 
-             # Check positions in the vertical (y-axis) direction
-            if y + i < game_state["field"].shape[1]:
-                if game_state["field"][x, y + i] != -1:
-                    # Add positions within blast radius
-                    danger_zone.append((x, y + i))
+                # Check positions in the vertical (y-axis) direction
+                if y + i < game_state["field"].shape[1]:
+                    if game_state["field"][x, y + i] != -1:
+                        # Add positions within blast radius
+                        danger_zone.append((x, y + i))
 
-            if y - i >= 0:
-                if game_state["field"][x, y - i] != -1:
-                    # Add positions within blast radius
-                    danger_zone.append((x, y - i))
+                if y - i >= 0:
+                    if game_state["field"][x, y - i] != -1:
+                        # Add positions within blast radius
+                        danger_zone.append((x, y - i))
 
     # Return the list of positions in the danger zone
     return danger_zone
@@ -154,8 +169,11 @@ def find_closest_coin(self,
     if new_game_state["coins"]:
         # Find the closest coin using the min() function with a
         # lambda function as the key
-        self.closest_coin_position = min(new_game_state["coins"], \
-            key=lambda coin: dist(new_agent_position, coin))
+
+        if self.closest_coin_position == new_agent_position or \
+            self.closest_coin_position is None:
+            self.closest_coin_position = min(new_game_state["coins"], \
+                key=lambda coin: dist(new_agent_position, coin))
 
         old_distance = dist(old_agent_position, self.closest_coin_position)
         new_distance = dist(new_agent_position, self.closest_coin_position)
@@ -172,6 +190,7 @@ def find_closest_coin(self,
     return 0
 
 
+# UNUSED
 def check_movement(self,
                    old_game_state,
                    new_game_state):
@@ -195,6 +214,7 @@ def check_movement(self,
     return False
 
 
+# UNUSED
 def check_actions(self,
                   action):
     """

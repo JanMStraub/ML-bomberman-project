@@ -4,22 +4,23 @@
 Reinforcement Learning agent for the game Bomberman.
 @author: Christian Teutsch, Jan Straub
 """
+from typing import List
+from collections import deque
 
 import pickle
 import torch
 import torch.nn.functional as F
 from torch import optim
-from typing import List
 from torch.optim import lr_scheduler
-from collections import deque
 
 import numpy as np
+import events as e
+from settings import COLS, ROWS, BOMB_POWER
 from .callbacks import state_to_features, ACTIONS
 from .q_network import DQN
 from .replay_memory import ReplayMemory, Transition
-from .helper import check_danger_zone, find_closest_coin, check_movement, check_actions
-from settings import COLS, ROWS, BOMB_POWER
-import events as e
+from .helper import check_danger_zone, find_closest_coin, movement_action_reward, bomb_start_action_reward, bomb_action_reward
+
 
 # Hyper parameters -- DO modify
 GAMMA = 0.7
@@ -30,13 +31,16 @@ STEP_SIZE = 10000
 LEARNING_RATE = 0.3
 
 # Events
-ALREADY_VISITED = "ALREADY_VISITED"
 IN_BOMB_RADIUS = "IN_BOMB_RADIUS"
 BOMB_EVADED = "BOMB_EVADED"
-CLOSER_TO_COIN = "CLOSER_TO_COIN"
-FARTHER_FROM_COIN = "FARTHER_FROM_COIN"
 NOT_MOVING = "NOT_MOVING"
 ACTION_PENALTY = "ACTION_PENALTY"
+GOOD_MOVEMENT_ACTION = "GOOD_MOVEMENT_ACTION"
+BAD_MOVEMENT_ACTION = "BAD_MOVEMENT_ACTION"
+GOOD_BOMB_ACTION = "GOOD_BOMB_ACTION"
+BAD_BOMB_ACTION = "BAD_BOMB_ACTION"
+GOOD_BOMB_ACTION_START = "GOOD_BOMB_ACTION_START"
+BAD_BOMB_ACTION_START = "BAD_BOMB_ACTION_START"
 
 
 def setup_training(self):
@@ -100,6 +104,7 @@ def game_events_occurred(self,
                      events,
                      self_action)
 
+    self.visited_tiles.append(new_game_state["self"][3])
     self.memory.push(state_to_features(old_game_state),
                      self_action,
                      state_to_features(new_game_state),
@@ -117,43 +122,49 @@ def check_conditions(self,
     """
     Check specific conditions and append corresponding events.
     """
-    if new_game_state["self"][3] in self.visited_tiles:
-        self.logger.debug("Event: ALREADY_VISITED")
-        events.append(ALREADY_VISITED)
-
-    self.visited_tiles.append(new_game_state["self"][3])
 
     if len(new_game_state["bombs"]) != 0:
         if check_danger_zone(new_game_state,
                              BOMB_POWER):
             self.logger.debug("Event: IN_BOMB_RADIUS")
             events.append(IN_BOMB_RADIUS)
-        else:
-            self.logger.debug("Event: BOMB_EVADED")
-            events.append(BOMB_EVADED)
 
-    if find_closest_coin(self,
-                         old_game_state,
-                         new_game_state) == 1:
-        self.logger.debug("Event: CLOSER_TO_COIN")
-        events.append(CLOSER_TO_COIN)
+        self.logger.debug("Event: BOMB_EVADED")
+        events.append(BOMB_EVADED)
 
-    if find_closest_coin(self,
-                         old_game_state,
-                         new_game_state) == 0:
-        self.logger.debug("Event: FARTHER_FROM_COIN")
-        events.append(FARTHER_FROM_COIN)
+    reward = find_closest_coin(self,
+                               old_game_state,
+                               new_game_state)
+    agent_position = new_game_state["self"][3]
+    is_good_movement = movement_action_reward(old_game_state,
+                                              new_game_state,
+                                              self_action)
+    is_visited_tile = agent_position in self.visited_tiles
 
-    if check_movement(self,
-                      old_game_state,
-                      new_game_state):
-        self.logger.debug("Event: NOT_MOVING")
-        events.append(NOT_MOVING)
+    if is_good_movement and not is_visited_tile and reward == 1:
+        self.logger.debug("Event: GOOD_MOVEMENT_ACTION")
+        events.append(GOOD_MOVEMENT_ACTION)
+    
+    if not is_good_movement and is_visited_tile and reward == 0:
+        self.logger.debug("Event: BAD_MOVEMENT_ACTION")
+        events.append(BAD_MOVEMENT_ACTION)
 
-    if check_actions(self,
-                     self_action):
-        self.logger.debug("Event: ACTION_PENALTY")
-        events.append(ACTION_PENALTY)
+    if bomb_start_action_reward(old_game_state,
+                                new_game_state):
+        self.logger.debug("Event: BAD_BOMB_ACTION_START")
+        events.append(BAD_BOMB_ACTION_START)
+    else:
+        self.logger.debug("Event: GOOD_BOMB_ACTION_START")
+        events.append(GOOD_BOMB_ACTION_START)
+
+    if bomb_action_reward(old_game_state,
+                          new_game_state,
+                          self_action):
+        self.logger.debug("Event: GOOD_BOMB_ACTION")
+        events.append(GOOD_BOMB_ACTION)
+    else:
+        self.logger.debug("Event: BAD_BOMB_ACTION")
+        events.append(BAD_BOMB_ACTION)
 
 
 def end_of_round(self,
@@ -205,9 +216,9 @@ def reward_from_events(self,
         e.MOVED_DOWN: 0.1,
         e.WAITED: -0.8,
         e.INVALID_ACTION: -1,
-        e.BOMB_DROPPED: -0.4,
+        e.BOMB_DROPPED: -0.05,
         e.BOMB_EXPLODED: 0.5,
-        e.CRATE_DESTROYED: 1,
+        e.CRATE_DESTROYED: 0.4,
         e.COIN_FOUND: 0.5,
         e.COIN_COLLECTED: 0.5,
         #e.KILLED_OPPONENT: 1,
@@ -215,13 +226,14 @@ def reward_from_events(self,
         #e.GOT_KILLED: -1,
         #e.OPPONENT_ELIMINATED: 0.7,
         #e.SURVIVED_ROUND: 1,
-        ALREADY_VISITED: -0.5,
         IN_BOMB_RADIUS: -0.5,
         BOMB_EVADED: 0.3,
-        CLOSER_TO_COIN: 0.3,
-        FARTHER_FROM_COIN: -0.5,
-        # NOT_MOVING: -1,
-        ACTION_PENALTY: -1,
+        GOOD_MOVEMENT_ACTION: 0.3,
+        BAD_MOVEMENT_ACTION: -0.4,
+        GOOD_BOMB_ACTION: 0.5,
+        BAD_BOMB_ACTION: -0.7,
+        GOOD_BOMB_ACTION_START: 0.5,
+        BAD_BOMB_ACTION_START: -1
     }
 
     # Calculate the total reward for the given events
@@ -246,7 +258,9 @@ def optimize_model(self,
     batch = Transition(*zip(*transitions))
 
     # Filter non-final next states and convert them to a PyTorch tensor
-    non_final_mask = torch.tensor([s is not None for s in batch.next_state], dtype=torch.bool)
+    non_final_mask = torch.tensor(
+        [s is not None for s in batch.next_state],
+        dtype=torch.bool)
     non_final_next_states = torch.from_numpy(
         np.array([s for s in batch.next_state if s is not None], dtype=np.float32)
     )
