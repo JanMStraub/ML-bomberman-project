@@ -15,16 +15,22 @@ class DQN(nn.Module):
     def __init__(self,
                  n_observations,
                  n_actions,
-                 hidden_size):
+                 hidden_size,
+                 dropout):
         super().__init__()
 
         self.model_sequence = nn.Sequential(
-        nn.Linear(n_observations, hidden_size),
-        nn.ReLU(),
-        nn.Linear(hidden_size, hidden_size),
-        nn.ReLU(),
-        nn.Linear(hidden_size, n_actions)
+            nn.Linear(n_observations, hidden_size),
+            nn.ReLU(),
+            #nn.BatchNorm1d(hidden_size),  # BatchNorm Layer
+            nn.Dropout(p = dropout),   # Dropout Layer
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU(),
+            #nn.BatchNorm1d(hidden_size),  # BatchNorm Layer
+            nn.Dropout(p = dropout),   # Dropout Layer
+            nn.Linear(hidden_size, n_actions)
         )
+
 
     def forward(self,
                 x):

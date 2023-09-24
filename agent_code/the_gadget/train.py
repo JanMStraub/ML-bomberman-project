@@ -15,32 +15,31 @@ from torch.optim import lr_scheduler
 
 import numpy as np
 import events as e
-from settings import COLS, ROWS, BOMB_POWER
+from settings import COLS, ROWS
 from .callbacks import state_to_features, ACTIONS
 from .q_network import DQN
 from .replay_memory import ReplayMemory, Transition
-from .helper import check_danger_zone, find_closest_coin, movement_action_reward, bomb_start_action_reward, bomb_action_reward
+from .helper import check_for_loop, is_valid_movement_action, bomb_at_spawn
+from .helper import closer_to_coin, destroy_crate_action_reward, bomb_evaded
 
 
-# Hyper parameters -- DO modify
-GAMMA = 0.7
-BATCH_SIZE = 128
+# Hyper parameters
+GAMMA = 0.9
+BATCH_SIZE = 512
 MAT_SIZE = COLS * ROWS
-HIDDEN_SIZE = 64
+HIDDEN_SIZE = 2048 # 1734
 STEP_SIZE = 10000
 LEARNING_RATE = 0.3
+DROPOUT = 0.6
 
 # Events
-IN_BOMB_RADIUS = "IN_BOMB_RADIUS"
+LOOP = "LOOP"
+VALID_ACTION = "VALID_ACTION"
+INVALID_ACTION = "INVALID_ACTION"
+BOMB_AT_SPAWN = "BOMB_AT_SPAWN"
+CLOSER_TO_COIN = "CLOSER_TO_COIN"
+DESTROY_CRATE = "DESTROY_CRATE"
 BOMB_EVADED = "BOMB_EVADED"
-NOT_MOVING = "NOT_MOVING"
-ACTION_PENALTY = "ACTION_PENALTY"
-GOOD_MOVEMENT_ACTION = "GOOD_MOVEMENT_ACTION"
-BAD_MOVEMENT_ACTION = "BAD_MOVEMENT_ACTION"
-GOOD_BOMB_ACTION = "GOOD_BOMB_ACTION"
-BAD_BOMB_ACTION = "BAD_BOMB_ACTION"
-GOOD_BOMB_ACTION_START = "GOOD_BOMB_ACTION_START"
-BAD_BOMB_ACTION_START = "BAD_BOMB_ACTION_START"
 
 
 def setup_training(self):
@@ -48,17 +47,21 @@ def setup_training(self):
     Initialize the agent for training.
     """
     self.logger.info("Setting up the training environment.")
-    self.visited_tiles = []
-    self.same_position = 0
-    self.action_history = deque(maxlen = 10)
+    self.bomb_history = deque([], 5)
+    self.coordinate_history = deque([], 20)
+    self.valid_actions = []
+    self.closest_coin_position = None
+    self.my_bomb_position = None
 
     # Initialize the policy network and the target network
     self.policy_net = DQN(MAT_SIZE,
                           len(ACTIONS),
-                          HIDDEN_SIZE)
+                          HIDDEN_SIZE,
+                          DROPOUT)
     self.target_net = DQN(MAT_SIZE,
                           len(ACTIONS),
-                          HIDDEN_SIZE)
+                          HIDDEN_SIZE,
+                          DROPOUT)
 
     # Load the initial weights of the target network
     self.target_net.load_state_dict(self.policy_net.state_dict())
@@ -78,25 +81,25 @@ def game_events_occurred(self,
                          events: List[str]):
     """
     Called once per step to allow intermediate rewards based on game events.
-
-    When this method is called, self.events will contain a list of all game
-    events relevant to your agent that occurred during the previous step.
-    Consult settings.py to see what events are tracked.
-    You can hand out rewards to your
-    agent based on these events and your knowledge of the (new) game state.
-
-    This is *one* of the places where you could update your agent.
-
-    :param self: This object is passed to all callbacks and you can set arbitrary values.
-    :param old_game_state: The state that was passed to the last call of `act`.
-    :param self_action: The action that you took.
-    :param new_game_state: The state the agent is in now.
-    :param events: The events that occurred when going from
-        `old_game_state` to `new_game_state`
     """
+
     self.logger.debug(f'Encountered game event(s) \
                       {", ".join(map(repr, events))} \
                       in step {new_game_state["step"]}')
+
+    # Gather information about the game state
+    self.active_bomb_positions = [xy for xy, _ in new_game_state['bombs']]
+    self.others = [xy for (_, _, _, xy) in new_game_state['others']]
+    field_shape = new_game_state['field'].shape
+    self.bomb_map = np.full(field_shape, 5)
+
+    for (xb, yb), t in new_game_state['bombs']:
+        for i, j in [(xb + h, yb) for h in range(-3, 4)] + [(xb, yb + h) for h in range(-3, 4)]:
+            if 0 < i < field_shape[0] and 0 < j < field_shape[1]:
+                self.bomb_map[i, j] = min(self.bomb_map[i, j], t)
+
+    if self_action == "BOMB":
+        self.my_bomb_position = old_game_state["self"][3]
 
     check_conditions(self,
                      old_game_state,
@@ -104,7 +107,6 @@ def game_events_occurred(self,
                      events,
                      self_action)
 
-    self.visited_tiles.append(new_game_state["self"][3])
     self.memory.push(state_to_features(old_game_state),
                      self_action,
                      state_to_features(new_game_state),
@@ -113,6 +115,7 @@ def game_events_occurred(self,
     optimize_model(self,
                    self_action)
 
+    self.valid_actions = []
 
 def check_conditions(self,
                      old_game_state: dict,
@@ -123,48 +126,39 @@ def check_conditions(self,
     Check specific conditions and append corresponding events.
     """
 
-    if len(new_game_state["bombs"]) != 0:
-        if check_danger_zone(new_game_state,
-                             BOMB_POWER):
-            self.logger.debug("Event: IN_BOMB_RADIUS")
-            events.append(IN_BOMB_RADIUS)
+    if check_for_loop(self,
+                      new_game_state):
+        self.logger.debug("Event: LOOP")
+        events.append(LOOP)
+    
+    if is_valid_movement_action(self,
+                                old_game_state,
+                                self_action):
+        self.logger.debug("Event: VALID_ACTION")
+        events.append(VALID_ACTION)
+    else:
+        self.logger.debug("Event: INVALID_ACTION")
+        events.append(INVALID_ACTION)
 
+    if bomb_at_spawn(old_game_state,
+                     new_game_state):
+        self.logger.debug("Event: BOMB_AT_SPAWN")
+        events.append(BOMB_AT_SPAWN)
+    
+    if closer_to_coin(self,
+                      old_game_state,
+                      new_game_state):
+        self.logger.debug("Event: CLOSER_TO_COIN")
+        events.append(CLOSER_TO_COIN)
+    
+    if destroy_crate_action_reward(new_game_state,
+                                   self_action):
+        self.logger.debug("Event: DESTROY_CRATE")
+        events.append(DESTROY_CRATE)
+
+    if bomb_evaded(new_game_state):
         self.logger.debug("Event: BOMB_EVADED")
         events.append(BOMB_EVADED)
-
-    reward = find_closest_coin(self,
-                               old_game_state,
-                               new_game_state)
-    agent_position = new_game_state["self"][3]
-    is_good_movement = movement_action_reward(old_game_state,
-                                              new_game_state,
-                                              self_action)
-    is_visited_tile = agent_position in self.visited_tiles
-
-    if is_good_movement and not is_visited_tile and reward == 1:
-        self.logger.debug("Event: GOOD_MOVEMENT_ACTION")
-        events.append(GOOD_MOVEMENT_ACTION)
-    
-    if not is_good_movement and is_visited_tile and reward == 0:
-        self.logger.debug("Event: BAD_MOVEMENT_ACTION")
-        events.append(BAD_MOVEMENT_ACTION)
-
-    if bomb_start_action_reward(old_game_state,
-                                new_game_state):
-        self.logger.debug("Event: BAD_BOMB_ACTION_START")
-        events.append(BAD_BOMB_ACTION_START)
-    else:
-        self.logger.debug("Event: GOOD_BOMB_ACTION_START")
-        events.append(GOOD_BOMB_ACTION_START)
-
-    if bomb_action_reward(old_game_state,
-                          new_game_state,
-                          self_action):
-        self.logger.debug("Event: GOOD_BOMB_ACTION")
-        events.append(GOOD_BOMB_ACTION)
-    else:
-        self.logger.debug("Event: BAD_BOMB_ACTION")
-        events.append(BAD_BOMB_ACTION)
 
 
 def end_of_round(self,
@@ -174,14 +168,6 @@ def end_of_round(self,
     """
     Called at the end of each game or when the agent died to hand out final rewards.
     This replaces game_events_occurred in this round.
-
-    This is similar to game_events_occurred. self.events will contain all events that
-    occurred during your agent's final step.
-
-    This is *one* of the places where you could update your agent.
-    This is also a good place to store an agent that you updated.
-
-    :param self: The same object that is passed to all of your callbacks.
     """
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
     self.memory.push(state_to_features(last_game_state),
@@ -195,51 +181,41 @@ def end_of_round(self,
         pickle.dump(self.policy_net,
                     file)
 
+    self.bomb_history = deque([], 5)
+    self.coordinate_history = deque([], 20)
+
 
 def reward_from_events(self,
                        events: List[str]) -> int:
     """
     Calculate the total reward based on a dictionary of event rewards.
-
-    Args:
-        events (List[str]): List of events that occurred during the game.
-
-    Returns:
-        int: The total reward for the given events.
     """
 
     # Define a dictionary to map events to rewards
     event_rewards = {
-        e.MOVED_LEFT: 0.1,
-        e.MOVED_RIGHT: 0.1,
-        e.MOVED_UP: 0.1,
-        e.MOVED_DOWN: 0.1,
         e.WAITED: -0.8,
-        e.INVALID_ACTION: -1,
-        e.BOMB_DROPPED: -0.05,
-        e.BOMB_EXPLODED: 0.5,
+        #e.INVALID_ACTION: -10,
+        e.BOMB_DROPPED: -0.2,
         e.CRATE_DESTROYED: 0.4,
         e.COIN_FOUND: 0.5,
         e.COIN_COLLECTED: 0.5,
-        #e.KILLED_OPPONENT: 1,
-        e.KILLED_SELF: -1,
-        #e.GOT_KILLED: -1,
-        #e.OPPONENT_ELIMINATED: 0.7,
-        #e.SURVIVED_ROUND: 1,
-        IN_BOMB_RADIUS: -0.5,
-        BOMB_EVADED: 0.3,
-        GOOD_MOVEMENT_ACTION: 0.3,
-        BAD_MOVEMENT_ACTION: -0.4,
-        GOOD_BOMB_ACTION: 0.5,
-        BAD_BOMB_ACTION: -0.7,
-        GOOD_BOMB_ACTION_START: 0.5,
-        BAD_BOMB_ACTION_START: -1
+        e.KILLED_OPPONENT: 1,
+        e.KILLED_SELF: -100,
+        e.GOT_KILLED: -1,
+        e.SURVIVED_ROUND: 1,
+        LOOP: -1,
+        VALID_ACTION: 0.3,
+        INVALID_ACTION: -2,
+        BOMB_AT_SPAWN: -10,
+        CLOSER_TO_COIN: 0.4,
+        DESTROY_CRATE: 0.5,
+        BOMB_EVADED: 0.7,
     }
 
     # Calculate the total reward for the given events
     total_reward = sum(event_rewards.get(event, 0) for event in events)
     self.logger.info(f"Awarded {total_reward} for events {', '.join(events)}")
-    total_reward -= 0.01
+    total_reward -= 0.1
 
     return total_reward
 
@@ -260,20 +236,21 @@ def optimize_model(self,
     # Filter non-final next states and convert them to a PyTorch tensor
     non_final_mask = torch.tensor(
         [s is not None for s in batch.next_state],
-        dtype=torch.bool)
+        dtype = torch.bool)
     non_final_next_states = torch.from_numpy(
-        np.array([s for s in batch.next_state if s is not None], dtype=np.float32)
+        np.array([s for s in batch.next_state if s is not None],
+                 dtype = np.float32)
     )
 
     # Convert batched states to a PyTorch tensor
     state_batch = torch.from_numpy(np.array(batch.state,
-                                            dtype=np.float32))
+                                            dtype = np.float32))
 
     # Create a one-hot encoded tensor for the selected actions in the batch
     action_indices = [ACTIONS.index(action) for action in batch.action]
     action_batch = torch.zeros(BATCH_SIZE,
                                len(ACTIONS),
-                               dtype=torch.float32)
+                               dtype = torch.float32)
     action_batch[range(BATCH_SIZE), action_indices] = 1
 
     # Compute Q-values for the selected actions in the current policy network
@@ -282,13 +259,13 @@ def optimize_model(self,
 
     # Compute the maximum Q-values for non-final next states using the target network
     next_state_values = torch.zeros(BATCH_SIZE,
-                                    dtype=torch.float32)
+                                    dtype = torch.float32)
     next_state_values[non_final_mask] = self.target_net(
         non_final_next_states).max(1).values.detach()
 
     # Compute the expected Q-values (target) using the Bellman equation
     reward_batch = torch.tensor(batch.reward,
-                                dtype=torch.float32)
+                                dtype = torch.float32)
     expected_state_action_values = (next_state_values * GAMMA) + reward_batch
 
     # Compute the loss using the Huber loss (smooth L1 loss)

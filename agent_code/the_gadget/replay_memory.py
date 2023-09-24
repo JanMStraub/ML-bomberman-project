@@ -19,7 +19,8 @@ class ReplayMemory(object):
 
     def __init__(self,
                  capacity):
-        self.memory = deque([], maxlen = capacity)
+        self.memory = deque([],
+                            maxlen = capacity)
 
     def __len__(self):
         return len(self.memory)
@@ -36,4 +37,5 @@ class ReplayMemory(object):
         """
         Get random entry from memory.
         """
-        return random.sample(self.memory, batch_size)
+        return random.sample(self.memory,
+                             batch_size)
