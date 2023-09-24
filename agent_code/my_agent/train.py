@@ -77,6 +77,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     self.target_coins_history.append(old_game_state['coins'])
     self.target_crates_history.append(crates)
     self.bomb_history.append(([x for (x,y) in old_game_state['bombs']]))
+    self.bomb_timer_history.append(([y for (x,y) in old_game_state['bombs']]))
     self.target_enemy_history.append(enemy_pos)
     self.visited_positions.append(old_game_state['self'][3])
     self.new_pos_history.append(new_game_state['self'][3])
@@ -246,9 +247,12 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.target_coins_history.append(last_game_state['coins'])
     self.target_crates_history.append(crates)
     self.bomb_history.append(([x for (x,y) in last_game_state['bombs']]))
+    self.bomb_timer_history.append(([y for (x,y) in last_game_state['bombs']]))
     self.target_enemy_history.append(enemy_pos)
     self.visited_positions.append(last_game_state['self'][3])
     self.new_pos_history.append(last_game_state['self'][3])
+
+   
 
     """self.visited_positions.append(old_game_state['self'][3])
     self.new_pos_history.append(new_game_state['self'][3])
@@ -268,6 +272,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         self.target_crates_history = []
         self.bomb_history = []
         self.target_enemy_history = []
+        self.bomb_timer_history = []
         self.n_sarsa_ctr = 0
 
 
@@ -734,18 +739,18 @@ def n_sarsa(self,game_state,crates):
         self.reward_history.append(n_sarsa_reward(self,crates,event,i,game_state))
         i+=1
 
-    if game_state['round'] < 5000:
+    if game_state['round'] < 10000:
         epsilon = 0.4
-    elif game_state['round'] >= 5000 and game_state['round'] < 10000:
-        epsilon = 0.3
     elif game_state['round'] >= 10000 and game_state['round'] < 15000:
+        epsilon = 0.3
+    elif game_state['round'] >= 15000 and game_state['round'] < 30000:
         epsilon = 0.2
     else:
         epsilon = 0.1
     g = 0 
     t = 0
     disc= 0.95 
-    alpha = 0.2
+    alpha = 0.15
     for state in self.state_history:
         if self.action_history[t] == 'UP':
             action = 0
@@ -792,6 +797,7 @@ def get_closest_object(objects,pos):
             distance = euclidean_distance(object_pos,pos) 
             if distance < old_distance:
                 close_object = object_pos
+                old_distance = distance
     return close_object
 
 def coin_reward(reward_ctr,new_pos,pos,close_object):
@@ -829,9 +835,9 @@ def move_reward(state,new_pos,pos,visited_positions,reward_ctr):
     Reward movement related events. 
     """
     if new_pos in visited_positions:
-        reward_ctr -= 1 
+        reward_ctr -= 2 
     else:
-        reward_ctr += 1
+        reward_ctr += 2
     return reward_ctr
 
 def crate_reward(reward_ctr,new_pos,pos,close_object):
@@ -846,10 +852,28 @@ def crate_reward(reward_ctr,new_pos,pos,close_object):
     return reward_ctr
 
 
-def bomb_reward(reward_ctr,new_pos,pos,close_object):
+def bomb_reward(reward_ctr,new_pos,pos,close_object,crates,enemies,events):
     """
     Reward bomb related events. 
     """
+    if 'BOMB_DROPPED' in events:
+        left = (pos[0]-1,pos[1])
+        right = (pos[0]+1,pos[1])
+        top = (pos[0],pos[1]-1)
+        down = (pos[0],pos[1]+1)
+
+        if top in crates or top in enemies:
+            reward_ctr += 2
+        elif right in crates or right in enemies:
+            reward_ctr += 2
+        elif down in crates or down in enemies:
+            reward_ctr += 2
+        elif left in crates or left in enemies:
+            reward_ctr += 2
+        else:
+            reward_ctr -= 2
+
+
 
     new_pos_euclidean = euclidean_distance(new_pos,close_object)
 
@@ -891,24 +915,26 @@ def n_sarsa_reward(self,crates,events,i,game_state):
     pos = self.visited_positions[i]
     visited_positions = self.visited_positions[:i]
     new_pos = self.new_pos_history[i]
+
+    timer = self.bomb_timer_history[i]
     
     game_rewards = {
         e.COIN_COLLECTED: 1,
-        e.KILLED_OPPONENT: 1,
+        e.KILLED_OPPONENT: 3,
         e.BOMB_DROPPED: 0,
         e.BOMB_EXPLODED: 0,
         e.MOVED_LEFT: 1,
         e.MOVED_RIGHT: 1,
         e.MOVED_UP: 1,
         e.MOVED_DOWN: 1,
-        e.WAITED: -2,
-        e.INVALID_ACTION: -3,
+        e.WAITED: -3,
+        e.INVALID_ACTION: -4,
         e.TILE_VISITED: -1,
         e.SURVIVED_ROUND: 2,
         e.MOVED_TOWARDS_COIN: 2,
-        e.KILLED_SELF: -2,
-        e.CRATE_DESTROYED: 2,
-        e.COIN_FOUND: 2,
+        e.KILLED_SELF: -5,
+        e.CRATE_DESTROYED: 3,
+        e.COIN_FOUND: 3,
         e.GOT_KILLED:-2,
         e.OPPONENT_ELIMINATED: 3,
         PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
@@ -929,8 +955,9 @@ def n_sarsa_reward(self,crates,events,i,game_state):
     close_object = get_closest_object(enemies,pos)
     reward_ctr = enemy_reward(reward_ctr,new_pos,pos,close_object)
     
-    close_object = get_closest_object(bombs,pos)
-    reward_ctr = bomb_reward(reward_ctr,new_pos,pos,close_object)
+    if 'BOMB_DROPPED' in events or timer.max() != 0:
+        close_object = get_closest_object(bombs,pos)
+        reward_ctr = bomb_reward(reward_ctr,new_pos,pos,close_object,crates,enemies,events)
         
 
     for event in events:

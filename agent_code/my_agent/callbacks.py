@@ -121,10 +121,10 @@ def act(self, game_state: dict) -> str:
         return np.random.choice(actions, p = [0.2,0.2,0.2,0.2,0.2,0.0])
     else:
         #state = states(self,game_state,False)
-        self.visited_positions(game_state['self'][3])
+        self.visited_positions.append((game_state['self'][3]))
         #state = extract_state(self,game_state,False)
         #actions = ACTIONS[0:4]
-        #actions = ACTIONS[0:6]
+        actions = ACTIONS[0:6]
         #choosed_action = actions[np.argmax(self.policy[state[0],state[1],:])]
         #return choosed_action
     
@@ -926,7 +926,13 @@ def state_to_features(self,value_estimates, old_game_state: dict, new_game_state
     # Check environment
     pos = old_game_state['self'][3]
     field_map = old_game_state['field']
-    explosion_map = old_game_state['explosion_map']
+
+    if old_game_state['explosion_map'].max()>0:
+        explosion_map = []
+        for x in range(17):
+            for y in range(17):
+                if old_game_state['explosion_map'][x,y] == 1:
+                    explosion_map.append((x,y))
 
     left_radar = [(x,pos[1]) for x in range(pos[0],pos[0]-4,-1)]
     right_radar = [(x,pos[1]) for x in range(pos[0],pos[0]+4,1)]
@@ -960,16 +966,16 @@ def state_to_features(self,value_estimates, old_game_state: dict, new_game_state
     top = (pos[0],pos[1]-1)
     down = (pos[0],pos[1]+1)
 
-  
+
     # Avoid bomb state 
     bomb_state = ['0','0','0','0']
-    if not wall_radar(self,top_radar,walls,train) and not crate_radar(self,top_radar,crates,train):
+    if bomb_radar(self,top_radar,bombs,train):
         bomb_state[0] = '1'
-    elif not wall_radar(self,right_radar,walls,train) and not crate_radar(self,right_radar,crates,train):
+    elif bomb_radar(self,right_radar,bombs,train):
         bomb_state[1] = '1'
-    elif not wall_radar(self,down_radar,walls,train) and not crate_radar(self,down_radar,crates,train):
+    elif bomb_radar(self,down_radar,bombs,train):
         bomb_state[2] = '1'
-    elif not wall_radar(self,left_radar,walls,train) and not crate_radar(self,left_radar,crates,train):
+    elif bomb_radar(self,left_radar,bombs,train):
         bomb_state[3] = '1'
     
     # Coin state 
@@ -1027,7 +1033,7 @@ def state_to_features(self,value_estimates, old_game_state: dict, new_game_state
     elif left in self.visited_positions:
         explore_state[3] = '1'
 
-     # Throw bomb state 
+    # Throw bomb state 
     bombing_state = ['0','0','0','0']
     if top in crates or top in enemies:
         bombing_state[0] = '1'
@@ -1038,15 +1044,26 @@ def state_to_features(self,value_estimates, old_game_state: dict, new_game_state
     elif left in crates or left in enemies:
         bombing_state[3] = '1'
 
-    binary_feature = bomb_state+coin_state+crate_state+wall_state+enemy_state+explore_state+bomb_state 
+    # Explosion map 
+    explosion_state = ['0','0','0','0']
+    if top in crates or top in enemies:
+        explosion_state[0] = '1'
+    elif right in crates or right in enemies:
+        explosion_state[1] = '1'
+    elif down in crates or down in enemies:
+        explosion_state[2] = '1'
+    elif left in crates or left in enemies:
+        explosion_state[3] = '1'
+
+    binary_feature = bomb_state+coin_state+crate_state+wall_state+enemy_state+explore_state+bomb_state+explosion_state
      
     binary_feature_state = ''.join(binary_feature)
     
     hex_feature = hex(int(binary_feature_state, 2))
 
     if hex_feature not in self.feature_list:
-        self.new_value_function.append([0,0,0,0,1,0,hex_feature])
-        self.new_policy.append([0,0,0,0,1,0,hex_feature])
+        self.new_value_function.append([0.2,0.2,0.2,0.2,0.1,0.1,hex_feature])
+        self.new_policy.append([0.2,0.2,0.2,0.2,0.1,0.1,hex_feature])
         self.feature_list.append(hex_feature)
 
     return hex_feature 
