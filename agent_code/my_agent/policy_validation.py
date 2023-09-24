@@ -26,8 +26,8 @@ validation_array[0][1] = ["RIGHT"]
 validation_array[0][2] = ["DOWN"]
 validation_array[0][3] = ["LEFT"]
 validation_array[0][4] = ["UP","RIGHT","DOWN","LEFT"]
-validation_array[0][5] = ["NONE"]
-validation_array[0][6] = ["NONE"]
+validation_array[0][5] = ["WAIT"]
+validation_array[0][6] = ["UP","RIGHT","DOWN","LEFT"]
 validation_array[0][7] = ["NONE"]
 
 validation_array[1][0] = ["UP"]
@@ -58,6 +58,15 @@ validation_array[3][5] = ["RIGHT"]
 validation_array[3][6] = ["DOWN"]
 validation_array[3][7] = ["LEFT"]
 
+validation_array[4][0] = ["BOMB"]
+validation_array[4][1] = ["UP"]
+validation_array[4][2] = ["RIGHT"]
+validation_array[4][3] = ["DOWN"]
+validation_array[4][4] = ["LEFT"]
+validation_array[4][5] = ["NONE"]
+validation_array[4][6] = ["NONE"]
+validation_array[4][7] = ["NONE"]
+
 
 
 correct_ctr = 0
@@ -78,7 +87,7 @@ def get_value(i):
         action = "BOMB"
     return action 
 
-for x in range(4):
+for x in range(5):
     print(" ")
     for y in range(8):
         if get_value(np.argmax(policy[x,y])) in validation_array[x][y]:
