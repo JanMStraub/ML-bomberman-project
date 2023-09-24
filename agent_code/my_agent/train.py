@@ -4,7 +4,7 @@ import pickle
 from typing import List
 
 import events as e
-from .callbacks import state_to_features, extract_state,states
+from .callbacks import state_to_features,extract_state,crate_radar,enemy_radar,coin_radar,bomb_radar
 
 import numpy as np
 
@@ -739,11 +739,11 @@ def n_sarsa(self,game_state,crates):
         self.reward_history.append(n_sarsa_reward(self,crates,event,i,game_state))
         i+=1
 
-    if game_state['round'] < 10000:
+    if game_state['round'] < 1000:
         epsilon = 0.4
-    elif game_state['round'] >= 10000 and game_state['round'] < 15000:
+    elif game_state['round'] >= 1000 and game_state['round'] < 3000:
         epsilon = 0.3
-    elif game_state['round'] >= 15000 and game_state['round'] < 30000:
+    elif game_state['round'] >= 3000 and game_state['round'] < 5000:
         epsilon = 0.2
     else:
         epsilon = 0.1
@@ -856,12 +856,12 @@ def bomb_reward(reward_ctr,new_pos,pos,close_object,crates,enemies,events):
     """
     Reward bomb related events. 
     """
+    left = (pos[0]-1,pos[1])
+    right = (pos[0]+1,pos[1])
+    top = (pos[0],pos[1]-1)
+    down = (pos[0],pos[1]+1)
+    
     if 'BOMB_DROPPED' in events:
-        left = (pos[0]-1,pos[1])
-        right = (pos[0]+1,pos[1])
-        top = (pos[0],pos[1]-1)
-        down = (pos[0],pos[1]+1)
-
         if top in crates or top in enemies:
             reward_ctr += 2
         elif right in crates or right in enemies:
@@ -873,6 +873,15 @@ def bomb_reward(reward_ctr,new_pos,pos,close_object,crates,enemies,events):
         else:
             reward_ctr -= 2
 
+    if 'WAITED' in events or 'INVALID_ACTION' in events:
+        if top in crates or top in enemies:
+            reward_ctr -= 3
+        elif right in crates or right in enemies:
+            reward_ctr -= 3
+        elif down in crates or down in enemies:
+            reward_ctr -= 3
+        elif left in crates or left in enemies:
+            reward_ctr -= 3
 
 
     new_pos_euclidean = euclidean_distance(new_pos,close_object)
@@ -887,7 +896,7 @@ def bomb_reward(reward_ctr,new_pos,pos,close_object,crates,enemies,events):
         reward_ctr += 2
     elif new_pos_euclidean >= 2 and new_pos_euclidean < 3 and new_pos != pos:
         reward_ctr += 3
-    elif new_pos_euclidean >= 3 and new_pos != pos:
+    elif new_pos_euclidean >= 3 and new_pos_euclidean < 7 and new_pos != pos:
         reward_ctr += 4
     return reward_ctr
 
@@ -917,6 +926,11 @@ def n_sarsa_reward(self,crates,events,i,game_state):
     new_pos = self.new_pos_history[i]
 
     timer = self.bomb_timer_history[i]
+
+    left_radar = [(x,pos[1]) for x in range(pos[0],pos[0]-4,-1)]
+    right_radar = [(x,pos[1]) for x in range(pos[0],pos[0]+4,1)]
+    top_radar = [(pos[0],y) for y in range(pos[1],pos[1]-4,-1)]
+    down_radar = [(pos[0],y) for y in range(pos[1],pos[1]+4,1)]
     
     game_rewards = {
         e.COIN_COLLECTED: 1,
@@ -945,17 +959,27 @@ def n_sarsa_reward(self,crates,events,i,game_state):
 
     
     reward_ctr = move_reward(state,new_pos,pos,visited_positions,reward_ctr)
+
+    if coin_radar(self,top_radar,coins,False) or coin_radar(self,right_radar,coins,False)\
+        or coin_radar(self,down_radar,coins,False) or coin_radar(self,left_radar,coins,False):
+        close_object = get_closest_object(coins,pos)
+        reward_ctr = coin_reward(reward_ctr,new_pos,pos,close_object)
+
+
+    if crate_radar(self,top_radar,crates,False) or crate_radar(self,right_radar,crates,False)\
+        or crate_radar(self,down_radar,crates,False) or crate_radar(self,left_radar,crates,False):
+        close_object = get_closest_object(crates,pos)
+        reward_ctr = crate_reward(reward_ctr,new_pos,pos,close_object)
     
-    close_object = get_closest_object(coins,pos)
-    reward_ctr = coin_reward(reward_ctr,new_pos,pos,close_object)
+    if enemy_radar(self,top_radar,crates,False) or enemy_radar(self,right_radar,crates,False)\
+        or enemy_radar(self,down_radar,crates,False) or enemy_radar(self,left_radar,crates,False):
+        close_object = get_closest_object(enemies,pos)
+        reward_ctr = enemy_reward(reward_ctr,new_pos,pos,close_object)
     
-    close_object = get_closest_object(crates,pos)
-    reward_ctr = crate_reward(reward_ctr,new_pos,pos,close_object)
-    
-    close_object = get_closest_object(enemies,pos)
-    reward_ctr = enemy_reward(reward_ctr,new_pos,pos,close_object)
-    
-    if 'BOMB_DROPPED' in events or timer.max() != 0:
+    max_timer = 0
+    if timer:
+        max_timer = max(timer)
+    if 'BOMB_DROPPED' in events or max_timer != 0:
         close_object = get_closest_object(bombs,pos)
         reward_ctr = bomb_reward(reward_ctr,new_pos,pos,close_object,crates,enemies,events)
         
