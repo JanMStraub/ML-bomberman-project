@@ -87,8 +87,6 @@ def setup(self):
             self.feature_list = [row[6] for row in self.new_policy]
             
 
-
-
 def act(self, game_state: dict) -> str:
     """
     Your agent should parse the input, think, and take a decision.
@@ -140,9 +138,9 @@ def act(self, game_state: dict) -> str:
         return action 
    
 
-def state_to_features(value_estimates, old_game_state: dict, new_game_state: dict) -> np.array:
+    """def state_to_features(value_estimates, old_game_state: dict, new_game_state: dict) -> np.array:
     """
-    *This is not a required function, but an idea to structure your code.*
+    """*This is not a required function, but an idea to structure your code.*
 
     Converts the game state to the input of your model, i.e.
     a feature vector.
@@ -152,7 +150,7 @@ def state_to_features(value_estimates, old_game_state: dict, new_game_state: dic
     what it contains.
 
     :param game_state:  A dictionary describing the current game board.
-    :return: np.array
+    :return: np.array"""
     """
     # This is the dict before the game begins and after it ends
     if old_game_state is None:
@@ -171,7 +169,7 @@ def state_to_features(value_estimates, old_game_state: dict, new_game_state: dic
             if old_pos == (x,y) and old_pos != new_pos:
                 value_estimates[x,y] += 1 
 
-    return field_map
+    return field_map"""
 
     # Create features by using field information and coin location 
     # For example, you could construct several channels of equal shape, ...
@@ -1050,29 +1048,6 @@ def state_to_features(self,value_estimates, old_game_state: dict, new_game_state
         self.new_value_function.append([0,0,0,0,1,0,hex_feature])
         self.new_policy.append([0,0,0,0,1,0,hex_feature])
         self.feature_list.append(hex_feature)
-
-
-    if train:
-        self.target_coins_history.append(self.target_coin)
-        self.target_crates_history.append(self.target_crate)
-        self.target_enemy_history.append(self.target_enemy)
-        self.bomb_history.append(self.bomb)
-        
-        index = None
-        if self.bomb in bombs:
-            index = bombs.index(self.bomb)
-            self.bomb_timer_history.append(timer[index])
-
-            """    if bombs:
-                index = bombs.index(self.bomb)
-                self.bomb_timer_history.append(timer[index])
-            else:
-                self.bomb_timer_history.append(0)"""
-        else:
-            self.bomb_timer_history.append(0)
-
-    #if hex_feature not in self.new_value_function[:]:
-    #    self.new_value_function.append([hex_feature,0,0,0,0,0,0])
 
     return hex_feature 
 

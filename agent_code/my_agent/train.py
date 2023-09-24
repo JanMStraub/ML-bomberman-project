@@ -57,19 +57,38 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     #self.events.append(events)
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
+    crates = []
+    for x in range(17):
+        for y in range(17):
+            if old_game_state['field'][x,y] == 1:
+                crates.append((x,y))
+
+    # Enemy agents 
+    enemies = old_game_state['others']
+    enemy_pos = []
+    for enemy in enemies:
+        enemy_pos.append(enemy[3])
 
     feature_state = state_to_features(self,self.new_value_function, old_game_state, new_game_state,True)
     self.state_history.append(feature_state)
     self.action_history.append(self_action)
     self.event_history.append(events)
+
+    self.target_coins_history.append(old_game_state['coins'])
+    self.target_crates_history.append(crates)
+    self.bomb_history.append(([x for (x,y) in old_game_state['bombs']]))
+    self.target_enemy_history.append(enemy_pos)
     self.visited_positions.append(old_game_state['self'][3])
+    self.new_pos_history.append(new_game_state['self'][3])
+
+    """self.visited_positions.append(old_game_state['self'][3])
     self.new_pos_history.append(new_game_state['self'][3])
     if 'COIN_COLLECTED' in events:
         self.target_coin = (0,0)
     if 'CRATE_DESTROYED' in events:
         self.target_crate = (0,0)
     if 'OPPONENT_ELIMINATED' in events:
-        self.target_enemy = (0,0)
+        self.target_enemy = (0,0)"""
 
 
     crates = []
@@ -143,6 +162,7 @@ def get_reward(self,crates,events,i,game_state):
     target_crate = self.target_crates_history[i]
     target_enemy = self.target_enemy_history[i]
     bomb_pos = self.bomb_history[i]
+
     
     game_rewards = {
         e.COIN_COLLECTED: 1,
@@ -172,8 +192,11 @@ def get_reward(self,crates,events,i,game_state):
     #if state[0] == 3:
     reward_ctr = move_handling(state,new_pos,pos,visited_positions,reward_ctr)
     #if state[0] == 1:
-    reward_ctr = coin_handling(reward_ctr,new_pos,pos,target_coin)
+    close_object = get_closest_object(game_state['coins'],pos)
+    reward_ctr = coin_reward(reward_ctr,new_pos,pos,close_object)
+    #reward_ctr = coin_handling(reward_ctr,new_pos,pos,target_coin)
     #if state[0] == 2:
+    close_object = get_closest_object(crates,pos)
     reward_ctr = crate_handling(reward_ctr,target_crate,pos,new_pos)
     #if state[0] == 4:
     reward_ctr = enemy_handling(reward_ctr,target_enemy,pos,new_pos)
@@ -203,18 +226,38 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     #self.transitions.append(Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events)))
 
 
+    crates = []
+    for x in range(17):
+        for y in range(17):
+            if last_game_state['field'][x,y] == 1:
+                crates.append((x,y))
+
+    # Enemy agents 
+    enemies = last_game_state['others']
+    enemy_pos = []
+    for enemy in enemies:
+        enemy_pos.append(enemy[3])
+
     feature_state = state_to_features(self,self.new_value_function, last_game_state, last_game_state,True)
     self.state_history.append(feature_state)
     self.action_history.append(last_action)
     self.event_history.append(events)
+
+    self.target_coins_history.append(last_game_state['coins'])
+    self.target_crates_history.append(crates)
+    self.bomb_history.append(([x for (x,y) in last_game_state['bombs']]))
+    self.target_enemy_history.append(enemy_pos)
     self.visited_positions.append(last_game_state['self'][3])
     self.new_pos_history.append(last_game_state['self'][3])
+
+    """self.visited_positions.append(old_game_state['self'][3])
+    self.new_pos_history.append(new_game_state['self'][3])
     if 'COIN_COLLECTED' in events:
         self.target_coin = (0,0)
     if 'CRATE_DESTROYED' in events:
         self.target_crate = (0,0)
     if 'OPPONENT_ELIMINATED' in events:
-        self.target_enemy = (0,0)
+        self.target_enemy = (0,0)"""
 
 
     crates = []
@@ -688,21 +731,21 @@ def get_sarsa_reward(self,state,old_state,new_state,events,crates):
 def n_sarsa(self,game_state,crates):
     i = 0 
     for event in self.event_history: 
-        self.reward_history.append(get_reward(self,crates,event,i,game_state))
+        self.reward_history.append(n_sarsa_reward(self,crates,event,i,game_state))
         i+=1
 
-    if game_state['round'] < 20000:
+    if game_state['round'] < 5000:
         epsilon = 0.4
-    elif game_state['round'] >= 20000 and game_state['round'] < 40000:
+    elif game_state['round'] >= 5000 and game_state['round'] < 10000:
         epsilon = 0.3
-    elif game_state['round'] >= 45000 and game_state['round'] < 60000:
+    elif game_state['round'] >= 10000 and game_state['round'] < 15000:
         epsilon = 0.2
     else:
         epsilon = 0.1
     g = 0 
     t = 0
     disc= 0.95 
-    alpha = 0.1
+    alpha = 0.2
     for state in self.state_history:
         if self.action_history[t] == 'UP':
             action = 0
@@ -741,6 +784,24 @@ def n_sarsa(self,game_state,crates):
     return 0 
 
 
+def get_closest_object(objects,pos):
+    close_object = (0,0)
+    old_distance = 100
+    if objects:
+        for object_pos in objects:
+            distance = euclidean_distance(object_pos,pos) 
+            if distance < old_distance:
+                close_object = object_pos
+    return close_object
+
+def coin_reward(reward_ctr,new_pos,pos,close_object):
+    if close_object != (0,0):
+        if euclidean_distance(pos,close_object) > euclidean_distance(new_pos,close_object):
+            reward_ctr += 2
+        else:
+            reward_ctr -= 2
+    return reward_ctr
+
 def euclidean_distance(coord1, coord2):
     x1, y1 = coord1
     x2, y2 = coord2
@@ -762,3 +823,117 @@ def get_state_return(disc,t,rewards):
         t+=1
 
     return state_return
+
+def move_reward(state,new_pos,pos,visited_positions,reward_ctr):
+    """
+    Reward movement related events. 
+    """
+    if new_pos in visited_positions:
+        reward_ctr -= 1 
+    else:
+        reward_ctr += 1
+    return reward_ctr
+
+def crate_reward(reward_ctr,new_pos,pos,close_object):
+    """
+    Reward crate related events. 
+    """
+    if close_object != (0,0):
+        if euclidean_distance(pos,close_object) > euclidean_distance(new_pos,close_object):
+            reward_ctr += 2
+        else:
+            reward_ctr -= 2
+    return reward_ctr
+
+
+def bomb_reward(reward_ctr,new_pos,pos,close_object):
+    """
+    Reward bomb related events. 
+    """
+
+    new_pos_euclidean = euclidean_distance(new_pos,close_object)
+
+    if euclidean_distance(pos,close_object) >= new_pos_euclidean:
+        reward_ctr -= 2
+    elif avoid_check_(pos,close_object):
+        reward_ctr += 2 
+    elif avoid_check_(new_pos,close_object):
+        reward_ctr += 2 
+    elif new_pos_euclidean >= 1 and new_pos_euclidean < 2 and new_pos != pos:
+        reward_ctr += 2
+    elif new_pos_euclidean >= 2 and new_pos_euclidean < 3 and new_pos != pos:
+        reward_ctr += 3
+    elif new_pos_euclidean >= 3 and new_pos != pos:
+        reward_ctr += 4
+    return reward_ctr
+
+
+def enemy_reward(reward_ctr,new_pos,pos,close_object):
+    """
+    Reward enemy related events. 
+    """
+    if close_object != (0,0):
+        if euclidean_distance(pos,close_object) > euclidean_distance(new_pos,close_object):
+            reward_ctr += 1
+        else:
+            reward_ctr -= 1
+    return reward_ctr
+
+
+def n_sarsa_reward(self,crates,events,i,game_state):
+
+    crates = self.target_crates_history[i][:]
+    coins = self.target_coins_history[i][:]
+    bombs = self.bomb_history[i][:]
+    enemies = self.target_enemy_history[i][:]
+
+    state = self.state_history[i]
+    pos = self.visited_positions[i]
+    visited_positions = self.visited_positions[:i]
+    new_pos = self.new_pos_history[i]
+    
+    game_rewards = {
+        e.COIN_COLLECTED: 1,
+        e.KILLED_OPPONENT: 1,
+        e.BOMB_DROPPED: 0,
+        e.BOMB_EXPLODED: 0,
+        e.MOVED_LEFT: 1,
+        e.MOVED_RIGHT: 1,
+        e.MOVED_UP: 1,
+        e.MOVED_DOWN: 1,
+        e.WAITED: -2,
+        e.INVALID_ACTION: -3,
+        e.TILE_VISITED: -1,
+        e.SURVIVED_ROUND: 2,
+        e.MOVED_TOWARDS_COIN: 2,
+        e.KILLED_SELF: -2,
+        e.CRATE_DESTROYED: 2,
+        e.COIN_FOUND: 2,
+        e.GOT_KILLED:-2,
+        e.OPPONENT_ELIMINATED: 3,
+        PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
+    }
+
+
+    reward_ctr = 0
+
+    
+    reward_ctr = move_reward(state,new_pos,pos,visited_positions,reward_ctr)
+    
+    close_object = get_closest_object(coins,pos)
+    reward_ctr = coin_reward(reward_ctr,new_pos,pos,close_object)
+    
+    close_object = get_closest_object(crates,pos)
+    reward_ctr = crate_reward(reward_ctr,new_pos,pos,close_object)
+    
+    close_object = get_closest_object(enemies,pos)
+    reward_ctr = enemy_reward(reward_ctr,new_pos,pos,close_object)
+    
+    close_object = get_closest_object(bombs,pos)
+    reward_ctr = bomb_reward(reward_ctr,new_pos,pos,close_object)
+        
+
+    for event in events:
+        reward_ctr += game_rewards[event]
+    self.reward_debug_history.append(reward_ctr)        
+    return reward_ctr
