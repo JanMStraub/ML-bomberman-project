@@ -84,7 +84,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
     crates = []
     self.n_sarsa_ctr+=1
-    if self.n_sarsa_ctr == 3:
+    if self.n_sarsa_ctr == 5:
         n_sarsa(self,old_game_state,crates)
         self.target_coins_history = []
         self.target_crates_history = []
@@ -175,18 +175,18 @@ def n_sarsa(self,game_state,crates):
         self.reward_history.append(n_sarsa_reward(self,crates,event,i,game_state))
         i+=1
 
-    if game_state['round'] < 100000:
+    if game_state['round'] < 5000:
         epsilon = 0.4
-    elif game_state['round'] >= 100000 and game_state['round'] < 300000:
+    elif game_state['round'] >= 5000 and game_state['round'] < 10000:
         epsilon = 0.3
-    elif game_state['round'] >= 300000 and game_state['round'] < 600000:
+    elif game_state['round'] >= 10000 and game_state['round'] < 15000:
         epsilon = 0.2
     else:
         epsilon = 0.1
     g = 0 
     t = 0
     disc= 0.95 
-    alpha = 0.1
+    alpha = 0.2
     for state in self.state_history:
         if self.action_history[t] == 'UP':
             action = 0
@@ -362,7 +362,7 @@ def n_sarsa_reward(self,crates,events,i,game_state):
     game_rewards = {
         e.COIN_COLLECTED: 1,
         e.KILLED_OPPONENT: 3,
-        e.BOMB_DROPPED: 0,
+        e.BOMB_DROPPED: -3,
         e.BOMB_EXPLODED: 0,
         e.MOVED_LEFT: 1,
         e.MOVED_RIGHT: 1,

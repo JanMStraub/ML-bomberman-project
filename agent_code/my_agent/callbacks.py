@@ -43,11 +43,11 @@ def setup(self):
     self.n_sarsa_ctr = 0
                     
 
-    """with open("my-saved-model.pt", "rb") as file:
+    with open("my-saved-model.pt", "rb") as file:
             self.model = pickle.load(file)
-            self.policy = self.model"""
+            self.new_policy = self.model
 
-    if self.train or not os.path.isfile("my-saved-model.pt"):
+    """if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
         weights = np.random.rand(len(ACTIONS))
         self.model = weights / weights.sum()
@@ -56,7 +56,7 @@ def setup(self):
         with open("my-saved-model.pt", "rb") as file:
             self.model = pickle.load(file)
             self.new_policy = self.model
-            self.feature_list = [row[6] for row in self.new_policy]
+            self.feature_list = [row[6] for row in self.new_policy]"""
             
 
 def act(self, game_state: dict) -> str:
