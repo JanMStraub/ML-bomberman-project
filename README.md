@@ -1,5 +1,5 @@
 ## Project "Bomberman Agent"
-Project by Lisa Fenzel, Christian Teutsch and Jan Straub
+Project by Christian Teutsch and Jan Straub
 
 # Status
 - [] Work submitted (25.09.2023)
