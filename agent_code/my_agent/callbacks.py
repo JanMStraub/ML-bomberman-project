@@ -43,11 +43,11 @@ def setup(self):
     self.n_sarsa_ctr = 0
                     
 
-    with open("my-saved-model.pt", "rb") as file:
+    """with open("my-saved-model.pt", "rb") as file:
             self.model = pickle.load(file)
-            self.new_policy = self.model
+            self.new_policy = self.model"""
 
-    """if self.train or not os.path.isfile("my-saved-model.pt"):
+    if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
         weights = np.random.rand(len(ACTIONS))
         self.model = weights / weights.sum()
@@ -56,7 +56,7 @@ def setup(self):
         with open("my-saved-model.pt", "rb") as file:
             self.model = pickle.load(file)
             self.new_policy = self.model
-            self.feature_list = [row[6] for row in self.new_policy]"""
+            self.feature_list = [row[6] for row in self.new_policy]
             
 
 def act(self, game_state: dict) -> str:
@@ -146,6 +146,17 @@ def euclidean_distance(coord1, coord2):
     distance = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
     return distance
 
+def get_closest_object(objects,pos):
+    close_object = (0,0)
+    old_distance = 100
+    if objects:
+        for object_pos in objects:
+            distance = euclidean_distance(object_pos,pos) 
+            if distance < old_distance:
+                close_object = object_pos
+                old_distance = distance
+    return close_object
+
 
 def state_to_features(self,value_estimates, old_game_state: dict, new_game_state: dict,train) -> np.array:
     """
@@ -207,6 +218,13 @@ def state_to_features(self,value_estimates, old_game_state: dict, new_game_state
     top = (pos[0],pos[1]-1)
     down = (pos[0],pos[1]+1)
 
+    close_object = get_closest_object(bombs,pos)
+    left_bomb_radar = [(x,close_object[1]) for x in range(close_object[0],close_object[0]-4,-1)]
+    right_bomb_radar = [(x,close_object[1]) for x in range(close_object[0],close_object[0]+4,1)]
+    top_bomb_radar = [(close_object[0],y) for y in range(close_object[1],close_object[1]-4,-1)]
+    down_bomb_radar = [(close_object[0],y) for y in range(close_object[1],close_object[1]+4,1)]
+    explosion_radar = left_bomb_radar + right_bomb_radar + top_bomb_radar + down_bomb_radar
+
 
     # Avoid bomb state 
     bomb_state = ['0','0','0','0']
@@ -243,24 +261,24 @@ def state_to_features(self,value_estimates, old_game_state: dict, new_game_state
 
     # Wall state 
     wall_state = ['0','0','0','0']
-    if wall_radar(self,top_radar,crates,train):
+    if wall_radar(self,top_radar,walls,train):
         wall_state[0] = '1'
-    elif wall_radar(self,right_radar,crates,train):
+    elif wall_radar(self,right_radar,walls,train):
         wall_state[1] = '1'
-    elif wall_radar(self,down_radar,crates,train):
+    elif wall_radar(self,down_radar,walls,train):
         wall_state[2] = '1'
-    elif wall_radar(self,left_radar,crates,train):
+    elif wall_radar(self,left_radar,crwallsates,train):
         wall_state[3] = '1'
 
     # Agent state 
     enemy_state = ['0','0','0','0']
-    if enemy_radar(self,top_radar,crates,train):
+    if enemy_radar(self,top_radar,enemies,train):
         enemy_state[0] = '1'
-    elif enemy_radar(self,right_radar,crates,train):
+    elif enemy_radar(self,right_radar,enemies,train):
         enemy_state[1] = '1'
-    elif enemy_radar(self,down_radar,crates,train):
+    elif enemy_radar(self,down_radar,enemies,train):
         enemy_state[2] = '1'
-    elif enemy_radar(self,left_radar,crates,train):
+    elif enemy_radar(self,left_radar,enemies,train):
         enemy_state[3] = '1'
 
     # Explore state 
@@ -287,13 +305,13 @@ def state_to_features(self,value_estimates, old_game_state: dict, new_game_state
 
     # Explosion map 
     explosion_state = ['0','0','0','0']
-    if top in crates or top in enemies:
+    if top in explosion_map or top in explosion_radar: 
         explosion_state[0] = '1'
-    elif right in crates or right in enemies:
+    elif right in explosion_map or right in explosion_radar:
         explosion_state[1] = '1'
-    elif down in crates or down in enemies:
+    elif down in explosion_map or down in explosion_radar: 
         explosion_state[2] = '1'
-    elif left in crates or left in enemies:
+    elif left in explosion_map or left in explosion_radar: 
         explosion_state[3] = '1'
 
     binary_feature = bomb_state+coin_state+crate_state+wall_state+enemy_state+explore_state+bomb_state+explosion_state
@@ -308,4 +326,5 @@ def state_to_features(self,value_estimates, old_game_state: dict, new_game_state
         self.feature_list.append(hex_feature)
 
     return hex_feature 
+
 
