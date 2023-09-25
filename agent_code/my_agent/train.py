@@ -84,7 +84,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
     crates = []
     self.n_sarsa_ctr+=1
-    if self.n_sarsa_ctr == 5:
+    if self.n_sarsa_ctr == 4:
         n_sarsa(self,old_game_state,crates)
         self.target_coins_history = []
         self.target_crates_history = []
@@ -398,8 +398,8 @@ def n_sarsa_reward(self,crates,events,i,game_state):
         close_object = get_closest_object(crates,pos)
         reward_ctr = crate_reward(reward_ctr,new_pos,pos,close_object)
     
-    if enemy_radar(self,top_radar,crates,False) or enemy_radar(self,right_radar,crates,False)\
-        or enemy_radar(self,down_radar,crates,False) or enemy_radar(self,left_radar,crates,False):
+    if enemy_radar(self,top_radar,enemies,False) or enemy_radar(self,right_radar,enemies,False)\
+        or enemy_radar(self,down_radar,enemies,False) or enemy_radar(self,left_radar,enemies,False):
         close_object = get_closest_object(enemies,pos)
         reward_ctr = enemy_reward(reward_ctr,new_pos,pos,close_object)
     
@@ -408,7 +408,7 @@ def n_sarsa_reward(self,crates,events,i,game_state):
         max_timer = max(timer)
     if 'BOMB_DROPPED' in events or max_timer != 0:
         close_object = get_closest_object(bombs,pos)
-        reward_ctr = bomb_reward(reward_ctr,new_pos,pos,close_object,crates,enemies,events)
+        reward_ctr = bomb_reward(reward_ctr,new_pos,pos,close_object,bombs,enemies,events)
         
     for event in events:
         reward_ctr += game_rewards[event]
