@@ -86,6 +86,10 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     self.n_sarsa_ctr+=1
     if self.n_sarsa_ctr == 4:
         n_sarsa(self,old_game_state,crates)
+        self.state_history = []
+        self.action_history = []
+        self.event_history = []
+        self.target_coins_history = []
         self.target_coins_history = []
         self.target_crates_history = []
         self.bomb_history = []
@@ -137,6 +141,9 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     
     n_sarsa(self,last_game_state,crates)
+    self.state_history = []
+    self.action_history = []
+    self.event_history = []
     self.target_coins_history = []
     self.target_crates_history = []
     self.bomb_history = []
