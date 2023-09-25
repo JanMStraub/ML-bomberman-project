@@ -43,11 +43,11 @@ def setup(self):
     self.n_sarsa_ctr = 0
                     
 
-    """with open("my-saved-model.pt", "rb") as file:
+    with open("my-saved-model.pt", "rb") as file:
             self.model = pickle.load(file)
-            self.new_policy = self.model"""
+            self.new_policy = self.model
 
-    if self.train or not os.path.isfile("my-saved-model.pt"):
+    """if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
         weights = np.random.rand(len(ACTIONS))
         self.model = weights / weights.sum()
@@ -57,7 +57,7 @@ def setup(self):
             self.model = pickle.load(file)
             self.new_policy = self.model
             self.feature_list = [row[6] for row in self.new_policy]
-            
+            """
 
 def act(self, game_state: dict) -> str:
     """
@@ -179,8 +179,8 @@ def state_to_features(self,value_estimates, old_game_state: dict, new_game_state
     pos = old_game_state['self'][3]
     field_map = old_game_state['field']
 
+    explosion_map = []
     if old_game_state['explosion_map'].max()>0:
-        explosion_map = []
         for x in range(17):
             for y in range(17):
                 if old_game_state['explosion_map'][x,y] == 1:
@@ -267,7 +267,7 @@ def state_to_features(self,value_estimates, old_game_state: dict, new_game_state
         wall_state[1] = '1'
     elif wall_radar(self,down_radar,walls,train):
         wall_state[2] = '1'
-    elif wall_radar(self,left_radar,crwallsates,train):
+    elif wall_radar(self,left_radar,walls,train):
         wall_state[3] = '1'
 
     # Agent state 
