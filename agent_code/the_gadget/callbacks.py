@@ -56,7 +56,6 @@ def act_learned(self,
     self.logger.debug("Querying model for action.")
     game_state_tensor = torch.from_numpy(state_to_features(game_state)).float()
     action = ACTIONS[self.policy_net.forward(game_state_tensor).argmax().item()]
-    #valid_action = choose_action(self, self.policy_net(game_state_tensor), game_state)
     self.logger.debug(f"Action: {action}")
     
     return action
