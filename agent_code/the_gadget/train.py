@@ -25,12 +25,12 @@ from .helper import closer_to_coin, destroy_crate_action_reward, bomb_evaded
 
 # Hyper parameters
 GAMMA = 0.9
-BATCH_SIZE = 512
+BATCH_SIZE = 256
 MAT_SIZE = COLS * ROWS
-HIDDEN_SIZE = 2048 # 1734
+HIDDEN_SIZE = 256 # 1734
 STEP_SIZE = 10000
 LEARNING_RATE = 0.3
-DROPOUT = 0.6
+DROPOUT = 0.7
 
 # Events
 LOOP = "LOOP"
@@ -195,21 +195,21 @@ def reward_from_events(self,
     event_rewards = {
         e.WAITED: -0.8,
         #e.INVALID_ACTION: -10,
-        e.BOMB_DROPPED: -0.2,
-        e.CRATE_DESTROYED: 0.4,
-        e.COIN_FOUND: 0.5,
+        e.BOMB_DROPPED: -2,
+        #e.CRATE_DESTROYED: 0.4,
+        #e.COIN_FOUND: 0.5,
         e.COIN_COLLECTED: 0.5,
-        e.KILLED_OPPONENT: 1,
-        e.KILLED_SELF: -100,
+        #e.KILLED_OPPONENT: 1,
+        #e.KILLED_SELF: -100,
         e.GOT_KILLED: -1,
         e.SURVIVED_ROUND: 1,
-        LOOP: -1,
+        LOOP: -10,
         VALID_ACTION: 0.3,
         INVALID_ACTION: -2,
         BOMB_AT_SPAWN: -10,
         CLOSER_TO_COIN: 0.4,
-        DESTROY_CRATE: 0.5,
-        BOMB_EVADED: 0.7,
+        #DESTROY_CRATE: 0.5,
+        #BOMB_EVADED: 0.7,
     }
 
     # Calculate the total reward for the given events
