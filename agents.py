@@ -86,13 +86,13 @@ class Agent:
         self.total_score = 0
 
         self.dead = None
-        self.score = None
+        self.score = []
 
         self.statistics = None
         self.lifetime_statistics = defaultdict(int)
         self.trophies = None
 
-        self.events = None
+        self.events = []
         self.available_think_time = None
 
         self.x = None
@@ -153,6 +153,7 @@ class Agent:
         self.total_score += delta
 
     def process_game_events(self, game_state):
+        #print(self.last_action)
         self.backend.send_event("game_events_occurred", self.last_game_state, self.last_action, game_state, self.events)
 
     def wait_for_game_event_processing(self):
@@ -266,6 +267,7 @@ class AgentBackend:
         self.agent_name = agent_name
 
         self.result_queue = result_queue
+        
 
     def start(self):
         raise NotImplementedError()
