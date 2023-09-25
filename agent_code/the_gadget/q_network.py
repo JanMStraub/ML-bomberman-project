@@ -22,10 +22,10 @@ class DQN(nn.Module):
         self.model_sequence = nn.Sequential(
             nn.Linear(n_observations, hidden_size),
             nn.ReLU(),
-#            nn.Dropout(p = dropout),   # Dropout Layer
+            nn.Dropout(p = dropout),   # Dropout Layer
             nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
-#            nn.Dropout(p = dropout),   # Dropout Layer
+            nn.Dropout(p = dropout),   # Dropout Layer
             nn.Linear(hidden_size, n_actions)
         )
 
