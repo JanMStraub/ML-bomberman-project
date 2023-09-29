@@ -98,7 +98,7 @@ def state_to_features(game_state: dict) -> np.array:
 
     # Create an array of ones with the same shape as the game field
     feature_matrix = np.ones_like(game_state["field"],
-                                  dtype = np.int)
+                                  dtype = int)
 
     # Map cell types to their corresponding values
     for cell_type, value in cell_mappings.items():

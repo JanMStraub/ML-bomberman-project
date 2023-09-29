@@ -27,7 +27,7 @@ from .helper import closer_to_coin, destroy_crate_action_reward, bomb_evaded
 GAMMA = 0.9
 BATCH_SIZE = 512
 MAT_SIZE = COLS * ROWS
-HIDDEN_SIZE = 1024 # 1734 ?
+HIDDEN_SIZE = 512 # 1734 ?
 STEP_SIZE = 10000
 LEARNING_RATE = 0.1
 DROPOUT = 0.5
